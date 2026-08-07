@@ -59,12 +59,16 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   let currentMode = 'login'; // 'login' | 'register'
   let currentMemberId = null;
   let currentMemberName = null;
+  let currentChallenge = null;
+  let currentCredentialIds = null;
 
   function showPhoneError(msg) {
     phoneError.textContent = msg;
     phoneError.classList.remove('hidden');
   }
 
+  // يجلب الـchallenge مسبقاً هنا (وليس لحظة ضغط زر البصمة) — طلب شبكي داخل معالج الضغط
+  // مباشرة قد يُفقد المتصفح "إذن التفاعل الحديث" اللازم لفتح واجهة WebAuthn فيرفضها بخطأ NotAllowedError.
   async function goToBioStep(phone) {
     phoneError.classList.add('hidden');
     let result;
@@ -80,6 +84,12 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       currentMode = 'register';
       currentMemberId = result.memberId;
       currentMemberName = result.memberName;
+      try {
+        currentChallenge = (await callApi('beginDeviceRegistration', { phone })).challenge;
+      } catch (err) {
+        showPhoneError(err.message);
+        return;
+      }
       bioText.textContent = 'مرحباً ' + result.memberName + '، هذا أول دخول لك — اضغط للربط ببصمة هذا الجهاز';
       bioBtnText.textContent = 'ربط بصمة هذا الجهاز';
     } else {
@@ -93,9 +103,6 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     stepPhone.classList.add('hidden');
     stepBio.classList.remove('hidden');
   }
-
-  let currentChallenge = null;
-  let currentCredentialIds = null;
 
   root.querySelector('#login-continue-btn').addEventListener('click', async () => {
     const phone = buildFullPhone(phoneInput.value);
@@ -114,7 +121,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     try {
       if (currentMode === 'register') {
         const reg = await registerDeviceCredential({
-          challenge: (await callApi('beginDeviceRegistration', { phone: currentPhone })).challenge,
+          challenge: currentChallenge,
           memberId: currentMemberId,
           memberName: currentMemberName,
           rpId: RP_ID, rpName: RP_NAME,
