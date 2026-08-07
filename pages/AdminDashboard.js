@@ -7,6 +7,7 @@ import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits }
 import { renderDualDateHtml } from '../utils/dates.js';
 import { buildFullPhone, extractLocalPart, formatPhoneDisplay, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
+import { withButtonLoading } from '../components/Button.js';
 import { renderMemberAssociationsView } from './MemberDashboard.js';
 
 // المدير عضو في نفس النظام بنفس الوقت (رقم جواله مسجَّل كعضو أيضاً) — تبويب "جمعياتي" يتيح له
@@ -65,7 +66,8 @@ async function showSettingsTab(content) {
   [content.querySelector('#s-duration'), content.querySelector('#s-share')].forEach(bindDigitNormalization);
   bindPhoneLocalInput(content.querySelector('#s-admin-phone'));
 
-  content.querySelector('#s-save').addEventListener('click', async () => {
+  const sSaveBtn = content.querySelector('#s-save');
+  sSaveBtn.addEventListener('click', withButtonLoading(sSaveBtn, async () => {
     const errEl = content.querySelector('#s-error');
     errEl.classList.add('hidden');
     const adminPhoneLocal = content.querySelector('#s-admin-phone').value;
@@ -82,7 +84,7 @@ async function showSettingsTab(content) {
       errEl.textContent = err.message;
       errEl.classList.remove('hidden');
     }
-  });
+  }));
 }
 
 /* ══════════════════ الأعضاء ══════════════════ */
@@ -105,10 +107,11 @@ async function showMembersTab(content) {
       '<td>' + m.name + '</td><td>' + formatPhoneDisplay(m.phone) + '</td>' +
       '<td><span class="badge badge-' + (m.status === 'نشط' ? 'success' : 'danger') + '">' + m.status + '</span></td>' +
       '<td><button class="btn btn-outline btn-sm toggle-status-btn">' + (m.status === 'نشط' ? 'إيقاف' : 'تفعيل') + '</button></td>';
-    tr.querySelector('.toggle-status-btn').addEventListener('click', async () => {
+    const toggleBtn = tr.querySelector('.toggle-status-btn');
+    toggleBtn.addEventListener('click', withButtonLoading(toggleBtn, async () => {
       await callApi('setMemberStatus', { memberId: m.id, status: m.status === 'نشط' ? 'موقوف' : 'نشط' });
       showMembersTab(content);
-    });
+    }));
     body.appendChild(tr);
   });
 
@@ -122,7 +125,8 @@ async function showMembersTab(content) {
         '<button class="btn btn-gold btn-block" id="m-save">إضافة</button>',
       onMount: (modal) => {
         bindPhoneLocalInput(modal.querySelector('#m-phone'));
-        modal.querySelector('#m-save').addEventListener('click', async () => {
+        const saveBtn = modal.querySelector('#m-save');
+        saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
           const errEl = modal.querySelector('#m-error');
           errEl.classList.add('hidden');
           const phone = buildFullPhone(modal.querySelector('#m-phone').value);
@@ -136,7 +140,7 @@ async function showMembersTab(content) {
             errEl.textContent = err.message;
             errEl.classList.remove('hidden');
           }
-        });
+        }));
       },
     });
   });
@@ -184,7 +188,8 @@ async function showAssociationsTab(content, session) {
         '<button class="btn btn-gold btn-block" id="a-save">إنشاء</button>',
       onMount: (modal) => {
         [modal.querySelector('#a-duration'), modal.querySelector('#a-share')].forEach(bindDigitNormalization);
-        modal.querySelector('#a-save').addEventListener('click', async () => {
+        const saveBtn = modal.querySelector('#a-save');
+        saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
           const errEl = modal.querySelector('#a-error');
           errEl.classList.add('hidden');
           try {
@@ -200,7 +205,7 @@ async function showAssociationsTab(content, session) {
             errEl.textContent = err.message;
             errEl.classList.remove('hidden');
           }
-        });
+        }));
       },
     });
   });
@@ -249,11 +254,11 @@ async function showSubscriptionsSubTab(subContent, assoc, content, session) {
       (assoc.status === 'جديدة' ? '<button class="btn btn-danger btn-sm withdraw-btn">انسحاب</button>' : '') + '</td>';
     tr.querySelector('.edit-sub-btn').addEventListener('click', () => openSubModal(subContent, assoc, s.memberId, s.memberName, s.sharesCount));
     const withdrawBtn = tr.querySelector('.withdraw-btn');
-    if (withdrawBtn) withdrawBtn.addEventListener('click', async () => {
+    if (withdrawBtn) withdrawBtn.addEventListener('click', withButtonLoading(withdrawBtn, async () => {
       if (!confirm('هل تريد سحب اشتراك ' + s.memberName + '؟')) return;
       await callApi('withdrawSubscription', { assocId: assoc.id, memberId: s.memberId });
       showSubscriptionsSubTab(subContent, assoc, content, session);
-    });
+    }));
     body.appendChild(tr);
   });
 
@@ -270,7 +275,8 @@ async function showSubscriptionsSubTab(subContent, assoc, content, session) {
         '<button class="btn btn-gold btn-block" id="sub-save">إضافة</button>',
       onMount: (modal) => {
         bindDigitNormalization(modal.querySelector('#sub-shares'));
-        modal.querySelector('#sub-save').addEventListener('click', async () => {
+        const saveBtn = modal.querySelector('#sub-save');
+        saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
           const errEl = modal.querySelector('#sub-error');
           errEl.classList.add('hidden');
           const shares = normalizeDigits(modal.querySelector('#sub-shares').value);
@@ -284,7 +290,7 @@ async function showSubscriptionsSubTab(subContent, assoc, content, session) {
             errEl.textContent = err.message;
             errEl.classList.remove('hidden');
           }
-        });
+        }));
       },
     });
   });
@@ -300,7 +306,8 @@ function openSubModal(subContent, assoc, memberId, memberName, currentShares) {
       '<button class="btn btn-gold btn-block" id="edit-save">حفظ</button>',
     onMount: (modal) => {
       bindDigitNormalization(modal.querySelector('#edit-shares'));
-      modal.querySelector('#edit-save').addEventListener('click', async () => {
+      const saveBtn = modal.querySelector('#edit-save');
+      saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
         const errEl = modal.querySelector('#edit-error');
         errEl.classList.add('hidden');
         const shares = normalizeDigits(modal.querySelector('#edit-shares').value);
@@ -314,7 +321,7 @@ function openSubModal(subContent, assoc, memberId, memberName, currentShares) {
           errEl.textContent = err.message;
           errEl.classList.remove('hidden');
         }
-      });
+      }));
     },
   });
 }
@@ -360,9 +367,21 @@ async function showMonthDetailModal(subContent, assoc, month) {
       collection.forEach(c => {
         const tr = document.createElement('tr');
         tr.innerHTML = '<td>' + c.memberName + '</td><td>' + formatCurrency(c.sharesValue) + '</td><td><input type="checkbox" ' + (c.collected ? 'checked' : '') + ' /></td>';
-        tr.querySelector('input').addEventListener('change', async (e) => {
-          await callApi('confirmCollection', { id: c.id, collected: e.target.checked });
-          showToast('تم التحديث', 'success');
+        const checkbox = tr.querySelector('input');
+        checkbox.addEventListener('change', async (e) => {
+          if (checkbox.dataset.loading === '1') { e.preventDefault(); return; } // منع تكرار التبديل أثناء طلب سابق قيد التنفيذ
+          checkbox.dataset.loading = '1';
+          checkbox.disabled = true;
+          try {
+            await callApi('confirmCollection', { id: c.id, collected: e.target.checked });
+            showToast('تم التحديث', 'success');
+          } catch (err) {
+            e.target.checked = !e.target.checked; // تراجع بصري عن التبديل عند الفشل
+            showToast(err.message, 'error');
+          } finally {
+            checkbox.dataset.loading = '';
+            checkbox.disabled = false;
+          }
         });
         collBody.appendChild(tr);
       });
@@ -370,9 +389,21 @@ async function showMonthDetailModal(subContent, assoc, month) {
       if (delBody) delivery.forEach(d => {
         const tr = document.createElement('tr');
         tr.innerHTML = '<td>' + d.memberName + '</td><td>' + formatCurrency(d.deliveryValue) + '</td><td><input type="checkbox" ' + (d.delivered ? 'checked' : '') + ' /></td>';
-        tr.querySelector('input').addEventListener('change', async (e) => {
-          await callApi('confirmDelivery', { id: d.id, delivered: e.target.checked });
-          showToast('تم التحديث', 'success');
+        const checkbox = tr.querySelector('input');
+        checkbox.addEventListener('change', async (e) => {
+          if (checkbox.dataset.loading === '1') { e.preventDefault(); return; }
+          checkbox.dataset.loading = '1';
+          checkbox.disabled = true;
+          try {
+            await callApi('confirmDelivery', { id: d.id, delivered: e.target.checked });
+            showToast('تم التحديث', 'success');
+          } catch (err) {
+            e.target.checked = !e.target.checked;
+            showToast(err.message, 'error');
+          } finally {
+            checkbox.dataset.loading = '';
+            checkbox.disabled = false;
+          }
         });
         delBody.appendChild(tr);
       });
@@ -389,13 +420,14 @@ async function showWishesSubTab(subContent, assoc) {
   wishes.forEach(w => {
     const tr = document.createElement('tr');
     tr.innerHTML = '<td>' + w.memberName + '</td><td>' + formatNumber(w.monthNum) + '</td><td>' + formatNumber(w.sharesCount) + '</td><td><button class="btn btn-danger btn-sm del-wish-btn">حذف</button></td>';
-    tr.querySelector('.del-wish-btn').addEventListener('click', async () => {
+    const delBtn = tr.querySelector('.del-wish-btn');
+    delBtn.addEventListener('click', withButtonLoading(delBtn, async () => {
       if (!confirm('حذف رغبة ' + w.memberName + '؟')) return;
       try {
         await callApi('deleteWish', { id: w.id, assocId: w.assocId, monthNum: w.monthNum, isAdmin: true });
         showWishesSubTab(subContent, assoc);
       } catch (err) { showToast(err.message, 'error'); }
-    });
+    }));
     body.appendChild(tr);
   });
 }

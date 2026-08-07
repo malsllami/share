@@ -6,6 +6,7 @@ import { showToast } from '../components/Toast.js';
 import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits } from '../utils/numbers.js';
 import { renderDualDateHtml } from '../utils/dates.js';
 import { isValidSharesCount } from '../utils/validators.js';
+import { withButtonLoading } from '../components/Button.js';
 
 const STATUS_LABEL = { 'جديدة': 'جديدة', 'نشطة': 'نشطة', 'منتهية': 'منتهية' };
 
@@ -165,7 +166,8 @@ function openWishModal(content, session, assoc, month, existingWish, mySharesLef
     onMount: (modal) => {
       const input = modal.querySelector('#wish-shares-input');
       bindDigitNormalization(input);
-      modal.querySelector('#wish-save-btn').addEventListener('click', async () => {
+      const saveBtn = modal.querySelector('#wish-save-btn');
+      saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
         const val = parseFloat(normalizeDigits(input.value)) || 0;
         const errEl = modal.querySelector('#wish-error');
         errEl.classList.add('hidden');
@@ -183,7 +185,7 @@ function openWishModal(content, session, assoc, month, existingWish, mySharesLef
           errEl.textContent = err.message;
           errEl.classList.remove('hidden');
         }
-      });
+      }));
     },
   });
 }

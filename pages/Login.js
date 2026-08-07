@@ -4,6 +4,7 @@ import { registerDeviceCredential, loginWithDeviceCredential, isWebAuthnSupporte
 import { saveSession, rememberPhone, getRememberedPhone } from '../services/auth.js';
 import { buildFullPhone, extractLocalPart, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { showToast } from '../components/Toast.js';
+import { withButtonLoading } from '../components/Button.js';
 import { RP_ID, RP_NAME } from '../config/config.js';
 
 function guessDeviceName() {
@@ -26,7 +27,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   root.innerHTML =
     '<div class="login-screen">' +
       '<div class="login-card">' +
-        '<div class="login-mark">س</div>' +
+        '<img class="login-mark" src="assets/logo.png" alt="سهم" />' +
         '<div class="login-title">سهم</div>' +
         '<div class="login-sub">إدارة الجمعيات المالية</div>' +
         '<div id="login-step-phone">' +
@@ -104,20 +105,20 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     stepBio.classList.remove('hidden');
   }
 
-  root.querySelector('#login-continue-btn').addEventListener('click', async () => {
+  const continueBtn = root.querySelector('#login-continue-btn');
+  continueBtn.addEventListener('click', withButtonLoading(continueBtn, async () => {
     const phone = buildFullPhone(phoneInput.value);
     if (!phone) { showPhoneError('رقم الجوال غير صالح — أدخل 9 أرقام تبدأ بـ5 بدون صفر أو مفتاح الدولة'); return; }
     if (!isWebAuthnSupported()) { showPhoneError('هذا المتصفح لا يدعم تسجيل الدخول بالبصمة'); return; }
     await goToBioStep(phone);
-  });
+  }));
 
   root.querySelector('#login-back-btn').addEventListener('click', () => {
     stepBio.classList.add('hidden');
     stepPhone.classList.remove('hidden');
   });
 
-  bioBtn.addEventListener('click', async () => {
-    bioBtn.disabled = true;
+  bioBtn.addEventListener('click', withButtonLoading(bioBtn, async () => {
     try {
       if (currentMode === 'register') {
         const reg = await registerDeviceCredential({
@@ -135,7 +136,6 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         showToast('تم ربط بصمة جهازك بنجاح', 'success');
         // إعادة تشغيل تدفق الدخول الآن بعد نجاح الربط
         await goToBioStep(currentPhone);
-        bioBtn.disabled = false;
         return;
       }
 
@@ -156,8 +156,6 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       onLoginSuccess();
     } catch (err) {
       showToast(err.message || 'فشل الدخول بالبصمة', 'error');
-    } finally {
-      bioBtn.disabled = false;
     }
-  });
+  }));
 }
