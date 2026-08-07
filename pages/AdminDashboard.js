@@ -7,9 +7,13 @@ import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits }
 import { renderDualDateHtml } from '../utils/dates.js';
 import { buildFullPhone, extractLocalPart, formatPhoneDisplay, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
+import { renderMemberAssociationsView } from './MemberDashboard.js';
 
+// المدير عضو في نفس النظام بنفس الوقت (رقم جواله مسجَّل كعضو أيضاً) — تبويب "جمعياتي" يتيح له
+// الاشتراك واختيار رغباته الخاصة تماماً كأي عضو آخر، بجانب صلاحياته الإدارية في بقية التبويبات.
 const TABS = [
-  { id: 'associations', label: 'الجمعيات' },
+  { id: 'my-associations', label: 'جمعياتي' },
+  { id: 'associations', label: 'إدارة الجمعيات' },
   { id: 'members', label: 'الأعضاء' },
   { id: 'settings', label: 'الإعدادات' },
   { id: 'archive', label: 'الأرشيف' },
@@ -28,7 +32,8 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 
   function activate(tabId) {
     tabsEl.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
-    if (tabId === 'settings') showSettingsTab(content);
+    if (tabId === 'my-associations') renderMemberAssociationsView(content, session);
+    else if (tabId === 'settings') showSettingsTab(content);
     else if (tabId === 'members') showMembersTab(content);
     else if (tabId === 'associations') showAssociationsTab(content, session);
     else if (tabId === 'archive') showArchiveTab(content);
@@ -36,7 +41,7 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 
   tabsEl.innerHTML = TABS.map(t => '<button class="tab-btn" data-tab="' + t.id + '">' + t.label + '</button>').join('');
   tabsEl.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => activate(b.dataset.tab)));
-  activate('associations');
+  activate('my-associations');
 }
 
 /* ══════════════════ الإعدادات ══════════════════ */

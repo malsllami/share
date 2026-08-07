@@ -15,10 +15,12 @@ export async function renderMemberDashboard(root, { session, onLogout }) {
   wireHeaderEvents(root, onLogout);
 
   const content = root.querySelector('#member-content');
-  await showAssociationList(content, session);
+  await renderMemberAssociationsView(content, session);
 }
 
-async function showAssociationList(content, session) {
+// عرض "جمعياتي" (قائمة + تفصيل) بلا رأس صفحة مستقل — قابل لإعادة الاستخدام داخل لوحة المدير
+// أيضاً (المدير عضو بنفس الوقت في هذا النظام، وله جمعياته ورغباته الخاصة كأي عضو آخر).
+export async function renderMemberAssociationsView(content, session) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let subs, associations;
   try {
@@ -107,7 +109,7 @@ async function showAssociationDetail(content, session, assoc) {
       '<div class="table-wrap"><table><thead><tr><th>الشهر</th><th>التاريخ</th><th>الأسهم</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody id="del-body"></tbody></table></div>'
     ) : '');
 
-  content.querySelector('#back-to-list').addEventListener('click', () => showAssociationList(content, session));
+  content.querySelector('#back-to-list').addEventListener('click', () => renderMemberAssociationsView(content, session));
 
   const wishGrid = content.querySelector('#wish-grid');
   months.forEach(m => {
