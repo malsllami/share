@@ -2,8 +2,7 @@
 import { callApi } from '../services/api.js';
 import { registerDeviceCredential, loginWithDeviceCredential, isWebAuthnSupported } from '../services/webauthn.js';
 import { saveSession, rememberPhone, getRememberedPhone } from '../services/auth.js';
-import { normalizePhone, formatPhoneDisplay } from '../utils/phone.js';
-import { bindDigitNormalization } from '../utils/numbers.js';
+import { buildFullPhone, extractLocalPart, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { showToast } from '../components/Toast.js';
 import { RP_ID, RP_NAME } from '../config/config.js';
 
@@ -33,7 +32,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         '<div id="login-step-phone">' +
           '<div class="form-group">' +
             '<label class="form-label">رقم الجوال</label>' +
-            '<input id="login-phone" class="form-control" inputmode="numeric" placeholder="05xxxxxxxx" value="' + getRememberedPhone().replace('+966','0') + '" />' +
+            renderPhoneInputGroup('login-phone', extractLocalPart(getRememberedPhone())) +
             '<div class="form-error hidden" id="login-phone-error"></div>' +
           '</div>' +
           '<button id="login-continue-btn" class="btn btn-gold btn-block">متابعة</button>' +
@@ -47,7 +46,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     '</div>';
 
   const phoneInput = root.querySelector('#login-phone');
-  bindDigitNormalization(phoneInput);
+  bindPhoneLocalInput(phoneInput);
 
   const stepPhone = root.querySelector('#login-step-phone');
   const stepBio = root.querySelector('#login-step-bio');
@@ -99,8 +98,8 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   let currentCredentialIds = null;
 
   root.querySelector('#login-continue-btn').addEventListener('click', async () => {
-    const phone = normalizePhone(phoneInput.value);
-    if (!phone) { showPhoneError('رقم الجوال غير صالح — يبدأ بـ5 ويتكوّن من 9 أرقام'); return; }
+    const phone = buildFullPhone(phoneInput.value);
+    if (!phone) { showPhoneError('رقم الجوال غير صالح — أدخل 9 أرقام تبدأ بـ5 بدون صفر أو مفتاح الدولة'); return; }
     if (!isWebAuthnSupported()) { showPhoneError('هذا المتصفح لا يدعم تسجيل الدخول بالبصمة'); return; }
     await goToBioStep(phone);
   });

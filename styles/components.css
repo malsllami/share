@@ -39,6 +39,27 @@
 .login-back { display: block; text-align: center; margin-top: 16px; font-size: 12px; color: #6d7c93; background: none; border: none; cursor: pointer; }
 .login-back:hover { color: #93a2ba; }
 
+/* ── مجموعة إدخال الجوال: +966 ثابتة دائماً + المستخدم يُدخل الجزء المحلي فقط (5xxxxxxxx) ── */
+.phone-input-group {
+  display: flex; align-items: stretch; direction: ltr;
+  border: 1.5px solid var(--border-2); border-radius: var(--radius-sm);
+  overflow: hidden; background: var(--bg); transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+}
+.phone-input-group:focus-within { border-color: var(--indigo); box-shadow: 0 0 0 3px var(--indigo-soft); }
+.phone-input-group .phone-prefix {
+  display: flex; align-items: center; padding: 0 14px; flex-shrink: 0;
+  background: var(--surface-2); color: var(--text-2); font-weight: 700; font-size: 14px;
+  border-left: 1px solid var(--border-2);
+}
+.phone-input-group .phone-local-input {
+  border: none; background: transparent; flex: 1; min-width: 0; padding: 12px 14px;
+  outline: none; color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums;
+}
+.login-card .phone-input-group { background: rgba(255,255,255,0.06); border-color: rgba(212,175,106,0.22); }
+.login-card .phone-input-group .phone-prefix { background: rgba(255,255,255,0.08); color: #93a2ba; border-color: rgba(212,175,106,0.22); }
+.login-card .phone-input-group .phone-local-input { color: #eef2f8; }
+.login-card .phone-input-group:focus-within { border-color: #d4af6a; box-shadow: 0 0 0 3px rgba(212,175,106,0.15); }
+
 /* ── بطاقة الجمعية ── */
 .assoc-card { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--border-2); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--sh); cursor: pointer; transition: all .2s var(--ease); }
 .assoc-card:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }

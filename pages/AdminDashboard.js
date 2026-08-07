@@ -5,7 +5,7 @@ import { openModal, closeModal } from '../components/Modal.js';
 import { showToast } from '../components/Toast.js';
 import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits } from '../utils/numbers.js';
 import { renderDualDateHtml } from '../utils/dates.js';
-import { normalizePhone, formatPhoneDisplay } from '../utils/phone.js';
+import { buildFullPhone, extractLocalPart, formatPhoneDisplay, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
 
 const TABS = [
@@ -51,23 +51,26 @@ async function showSettingsTab(content) {
       '<div class="form-group"><label class="form-label">قيمة السهم الافتراضية (ريال)</label>' +
         '<input id="s-share" class="form-control" inputmode="decimal" value="' + (s.defaultShareValue || '') + '" /></div>' +
       '<div class="form-group"><label class="form-label">رقم جوال المدير</label>' +
-        '<input id="s-admin-phone" class="form-control" inputmode="numeric" placeholder="05xxxxxxxx" value="' + (s.adminPhone ? s.adminPhone.replace('+966', '0') : '') + '" />' +
+        renderPhoneInputGroup('s-admin-phone', extractLocalPart(s.adminPhone)) +
         '<div class="form-hint">من يدخل بهذا الرقم تُفتح له لوحة المدير تلقائياً بعد نجاح مصادقة البصمة</div></div>' +
       '<div class="form-error hidden" id="s-error"></div>' +
       '<button class="btn btn-gold btn-block" id="s-save">حفظ الإعدادات</button>' +
     '</div>';
 
-  [content.querySelector('#s-duration'), content.querySelector('#s-share'), content.querySelector('#s-admin-phone')]
-    .forEach(bindDigitNormalization);
+  [content.querySelector('#s-duration'), content.querySelector('#s-share')].forEach(bindDigitNormalization);
+  bindPhoneLocalInput(content.querySelector('#s-admin-phone'));
 
   content.querySelector('#s-save').addEventListener('click', async () => {
     const errEl = content.querySelector('#s-error');
     errEl.classList.add('hidden');
+    const adminPhoneLocal = content.querySelector('#s-admin-phone').value;
+    const adminPhone = adminPhoneLocal ? buildFullPhone(adminPhoneLocal) : '';
+    if (adminPhoneLocal && !adminPhone) { errEl.textContent = 'رقم جوال المدير غير صالح — 9 أرقام تبدأ بـ5'; errEl.classList.remove('hidden'); return; }
     try {
       await callApi('updateSettings', {
         defaultDuration: content.querySelector('#s-duration').value,
         defaultShareValue: content.querySelector('#s-share').value,
-        adminPhone: content.querySelector('#s-admin-phone').value,
+        adminPhone: adminPhone,
       });
       showToast('تم حفظ الإعدادات', 'success');
     } catch (err) {
@@ -109,16 +112,18 @@ async function showMembersTab(content) {
       title: 'إضافة عضو جديد',
       bodyHtml:
         '<div class="form-group"><label class="form-label">الاسم</label><input id="m-name" class="form-control" /></div>' +
-        '<div class="form-group"><label class="form-label">رقم الجوال</label><input id="m-phone" class="form-control" inputmode="numeric" placeholder="05xxxxxxxx" /></div>' +
+        '<div class="form-group"><label class="form-label">رقم الجوال</label>' + renderPhoneInputGroup('m-phone') + '</div>' +
         '<div class="form-error hidden" id="m-error"></div>' +
         '<button class="btn btn-gold btn-block" id="m-save">إضافة</button>',
       onMount: (modal) => {
-        bindDigitNormalization(modal.querySelector('#m-phone'));
+        bindPhoneLocalInput(modal.querySelector('#m-phone'));
         modal.querySelector('#m-save').addEventListener('click', async () => {
           const errEl = modal.querySelector('#m-error');
           errEl.classList.add('hidden');
+          const phone = buildFullPhone(modal.querySelector('#m-phone').value);
+          if (!phone) { errEl.textContent = 'رقم الجوال غير صالح — 9 أرقام تبدأ بـ5'; errEl.classList.remove('hidden'); return; }
           try {
-            await callApi('addMember', { name: modal.querySelector('#m-name').value, phone: modal.querySelector('#m-phone').value });
+            await callApi('addMember', { name: modal.querySelector('#m-name').value, phone });
             closeModal();
             showToast('تمت إضافة العضو', 'success');
             showMembersTab(content);
