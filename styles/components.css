@@ -1,0 +1,77 @@
+/* مكوّنات خاصة — شاشة الدخول، بطاقات الجمعية، شبكة الرغبات، شريط السعة */
+
+/* ── شاشة الدخول ── */
+.login-screen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: var(--header-bg); padding: 24px; position: relative; overflow: hidden;
+}
+.login-screen::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 70% 55% at 20% 10%, rgba(124,147,232,0.16) 0%, transparent 60%),
+              radial-gradient(ellipse 55% 45% at 85% 90%, rgba(212,175,106,0.12) 0%, transparent 60%);
+  pointer-events: none;
+}
+.login-card {
+  position: relative; z-index: 1; width: 100%; max-width: 380px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(212,175,106,0.18);
+  border-radius: var(--radius-lg); padding: 34px 28px; backdrop-filter: blur(18px);
+  box-shadow: var(--sh-lg); color: #eef2f8;
+}
+.login-mark { width: 52px; height: 52px; margin: 0 auto 16px; border-radius: 16px; background: linear-gradient(150deg,#3a2d16,#d4af6a); display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 22px; color: #1a1305; }
+.login-title { text-align: center; font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+.login-sub { text-align: center; font-size: 12.5px; color: #93a2ba; margin-bottom: 26px; }
+.login-card .form-control { background: rgba(255,255,255,0.06); border-color: rgba(212,175,106,0.22); color: #eef2f8; }
+.login-card .form-control:focus { border-color: #d4af6a; box-shadow: 0 0 0 3px rgba(212,175,106,0.15); }
+.login-card .form-label { color: #93a2ba; }
+
+.bio-btn {
+  width: 100%; margin-top: 18px; border: 1.5px solid #d4af6a; border-radius: var(--pill);
+  padding: 14px; display: flex; align-items: center; justify-content: center; gap: 10px;
+  color: #d4af6a; background: transparent; cursor: pointer; font-weight: 700; font-size: 13.5px;
+  transition: background .2s var(--ease);
+}
+.bio-btn:hover:not(:disabled) { background: rgba(212,175,106,0.08); }
+.bio-btn:disabled { opacity: .5; cursor: not-allowed; }
+.bio-ring { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #d4af6a; position: relative; flex-shrink: 0; }
+.bio-ring::after { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: #d4af6a; animation: bioPulse 2s ease-in-out infinite; }
+@keyframes bioPulse { 0%,100% { opacity: .35; transform: scale(.75); } 50% { opacity: 1; transform: scale(1); } }
+
+.login-back { display: block; text-align: center; margin-top: 16px; font-size: 12px; color: #6d7c93; background: none; border: none; cursor: pointer; }
+.login-back:hover { color: #93a2ba; }
+
+/* ── بطاقة الجمعية ── */
+.assoc-card { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--border-2); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--sh); cursor: pointer; transition: all .2s var(--ease); }
+.assoc-card:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }
+.assoc-card.status-نشطة { border-top-color: var(--success); }
+.assoc-card.status-منتهية { border-top-color: var(--text-3); }
+.assoc-card.status-جديدة { border-top-color: var(--gold); }
+.assoc-name { font-size: 15px; font-weight: 800; margin-bottom: 10px; }
+.assoc-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.assoc-meta-item { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 11px; }
+.assoc-meta-label { font-size: 9.5px; color: var(--text-3); font-weight: 700; }
+.assoc-meta-val { font-size: 14px; font-weight: 800; color: var(--gold); margin-top: 2px; }
+
+/* ── شبكة الرغبات ── */
+.wish-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap: 10px; }
+.wish-month-card { border: 2px solid var(--border); border-radius: var(--radius); padding: 16px 12px; text-align: center; cursor: pointer; transition: all .2s var(--spring); background: var(--surface); }
+.wish-month-card:hover { border-color: var(--indigo); }
+.wish-month-card.selected { border-color: var(--success); background: var(--success-soft); }
+.wish-month-card.full { border-color: var(--danger); opacity: .6; pointer-events: none; }
+.wish-month-card.closed { opacity: .45; pointer-events: none; }
+.wish-month-num { font-size: 24px; font-weight: 900; color: var(--indigo); }
+.wish-month-info { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+
+/* ── شريط السعة الشهرية ── */
+.capacity-bar-wrap { margin-top: 8px; }
+.capacity-bar { height: 8px; background: var(--bg-2); border-radius: var(--pill); overflow: hidden; }
+.capacity-bar-fill { height: 100%; background: linear-gradient(90deg, var(--indigo), var(--gold)); border-radius: var(--pill); transition: width .5s var(--ease); }
+.capacity-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); margin-top: 6px; font-weight: 600; }
+
+/* ── صف جهاز مربوط ── */
+.device-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; }
+.device-row .info { font-size: 13px; font-weight: 700; }
+.device-row .meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+/* ── تاريخ ميلادي/هجري ── */
+.dual-date { font-size: 11.5px; color: var(--text-3); }
+.dual-date .h { color: var(--gold); font-weight: 700; }

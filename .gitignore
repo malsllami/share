@@ -1,0 +1,8 @@
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+
+# كود Apps Script يُدار يدوياً داخل محرر Apps Script نفسه (مصدر الحقيقة هناك)،
+# وليس جزءاً من موقع GitHub Pages — يبقى محلياً فقط للمرجعية
+gas/
