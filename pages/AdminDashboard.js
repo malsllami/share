@@ -4,15 +4,17 @@ import { renderAppHeader, wireHeaderEvents } from '../components/Header.js';
 import { openModal, closeModal } from '../components/Modal.js';
 import { showToast } from '../components/Toast.js';
 import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits } from '../utils/numbers.js';
-import { renderDualDateHtml } from '../utils/dates.js';
+import { renderDualDateHtml, formatDualDate } from '../utils/dates.js';
 import { buildFullPhone, extractLocalPart, formatPhoneDisplay, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading } from '../components/Button.js';
+import { fillTemplate, buildWhatsAppLink } from '../utils/template.js';
 import { renderMemberAssociationsView } from './MemberDashboard.js';
 
 // المدير عضو في نفس النظام بنفس الوقت (رقم جواله مسجَّل كعضو أيضاً) — تبويب "جمعياتي" يتيح له
 // الاشتراك واختيار رغباته الخاصة تماماً كأي عضو آخر، بجانب صلاحياته الإدارية في بقية التبويبات.
 const TABS = [
+  { id: 'overview', label: 'نظرة عامة' },
   { id: 'my-associations', label: 'جمعياتي' },
   { id: 'associations', label: 'إدارة الجمعيات' },
   { id: 'members', label: 'الأعضاء' },
@@ -33,7 +35,8 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 
   function activate(tabId) {
     tabsEl.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
-    if (tabId === 'my-associations') renderMemberAssociationsView(content, session);
+    if (tabId === 'overview') showOverviewTab(content);
+    else if (tabId === 'my-associations') renderMemberAssociationsView(content, session);
     else if (tabId === 'settings') showSettingsTab(content);
     else if (tabId === 'members') showMembersTab(content);
     else if (tabId === 'associations') showAssociationsTab(content, session);
@@ -42,15 +45,68 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 
   tabsEl.innerHTML = TABS.map(t => '<button class="tab-btn" data-tab="' + t.id + '">' + t.label + '</button>').join('');
   tabsEl.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => activate(b.dataset.tab)));
-  activate('my-associations');
+  activate('overview');
+}
+
+/* ══════════════════ نظرة عامة ══════════════════ */
+async function showOverviewTab(content) {
+  content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
+  const [associations, members, reqCount] = await Promise.all([
+    callApi('getAssociations'),
+    callApi('getMembers'),
+    callApi('getRequestCount'),
+  ]);
+
+  const activeAssociations = associations.filter(a => a.status !== 'منتهية');
+  const activeMembers = members.filter(m => m.status === 'نشط');
+
+  content.innerHTML =
+    '<div class="grid grid-3 mt-16" style="margin-bottom:20px">' +
+      '<div class="stat-card"><div class="n">' + formatNumber(associations.length) + '</div><div class="l">إجمالي الجمعيات (' + formatNumber(activeAssociations.length) + ' جارية)</div></div>' +
+      '<div class="stat-card"><div class="n">' + formatNumber(members.length) + '</div><div class="l">إجمالي الأعضاء (' + formatNumber(activeMembers.length) + ' نشط)</div></div>' +
+      '<div class="stat-card"><div class="n">' + formatNumber(reqCount.count) + '</div><div class="l">عدد طلبات السكربت</div></div>' +
+    '</div>' +
+    '<div class="section-title">الجمعيات الجارية</div>' +
+    '<div class="grid grid-2" id="overview-assoc-list"></div>';
+
+  const list = content.querySelector('#overview-assoc-list');
+  if (activeAssociations.length === 0) { list.innerHTML = '<p class="table-empty">لا توجد جمعية جارية حالياً</p>'; return; }
+
+  const monthsPerAssoc = await Promise.all(activeAssociations.map(a => callApi('getMonths', { assocId: a.id })));
+
+  activeAssociations.forEach((a, idx) => {
+    const months = monthsPerAssoc[idx];
+    const closedCount = months.filter(m => m.closed).length;
+    const today = new Date();
+    const end = new Date(a.endDate);
+    const remainingDays = Math.max(0, Math.ceil((end - today) / (1000 * 60 * 60 * 24)));
+    const dual = formatDualDate(a.endDate);
+
+    const el = document.createElement('div');
+    el.className = 'assoc-card status-' + a.status;
+    el.innerHTML =
+      '<div class="flex-between"><div class="assoc-name">' + a.name + '</div><span class="badge badge-' + (a.status === 'نشطة' ? 'success' : 'gold') + '">' + a.status + '</span></div>' +
+      '<div class="assoc-meta">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">التقدّم</div><div class="assoc-meta-val">' + formatNumber(closedCount) + ' / ' + formatNumber(a.duration) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">المشتركون</div><div class="assoc-meta-val">' + formatNumber(a.memberCount) + '</div></div>' +
+      '</div>' +
+      '<div class="capacity-bar-wrap"><div class="capacity-bar"><div class="capacity-bar-fill" style="width:' + Math.round((closedCount / a.duration) * 100) + '%"></div></div>' +
+        '<div class="capacity-label"><span>تنتهي: ' + dual.combined + '</span><span>' + formatNumber(remainingDays) + ' يوم متبقٍ</span></div></div>';
+    list.appendChild(el);
+  });
 }
 
 /* ══════════════════ الإعدادات ══════════════════ */
+const MESSAGE_PLACEHOLDER_HINTS = {
+  collection: '{الاسم} {عدد_الاسهم} {قيمة_التحصيل}',
+  delivery: '{الاسم} {عدد_الاسهم} {رقم_الشهر} {التاريخ} {اسهم_التسليم} {المتبقي} {تاريخ_الوقت}',
+};
+
 async function showSettingsTab(content) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   const s = await callApi('getSettings');
   content.innerHTML =
-    '<div class="card" style="max-width:440px">' +
+    '<div class="card" style="max-width:520px">' +
       '<div class="card-title">الإعدادات العامة</div>' +
       '<div class="form-group"><label class="form-label">مدة الجمعية الافتراضية (أشهر)</label>' +
         '<input id="s-duration" class="form-control" inputmode="numeric" value="' + (s.defaultDuration || '') + '" /></div>' +
@@ -61,6 +117,18 @@ async function showSettingsTab(content) {
         '<div class="form-hint">من يدخل بهذا الرقم تُفتح له لوحة المدير تلقائياً بعد نجاح مصادقة البصمة</div></div>' +
       '<div class="form-error hidden" id="s-error"></div>' +
       '<button class="btn btn-gold btn-block" id="s-save">حفظ الإعدادات</button>' +
+    '</div>' +
+    '<div class="card mt-16" style="max-width:520px">' +
+      '<div class="card-title">نص رسالة واتساب — تأكيد التحصيل</div>' +
+      '<div class="form-group"><textarea id="s-msg-collection" class="form-control" rows="6" style="font-family:inherit">' + s.collectionMessage + '</textarea>' +
+        '<div class="form-hint">الرموز المتاحة: ' + MESSAGE_PLACEHOLDER_HINTS.collection + '</div></div>' +
+    '</div>' +
+    '<div class="card mt-16" style="max-width:520px">' +
+      '<div class="card-title">نص رسالة واتساب — تأكيد التسليم</div>' +
+      '<div class="form-group"><textarea id="s-msg-delivery" class="form-control" rows="8" style="font-family:inherit">' + s.deliveryMessage + '</textarea>' +
+        '<div class="form-hint">الرموز المتاحة: ' + MESSAGE_PLACEHOLDER_HINTS.delivery + '</div></div>' +
+      '<div class="form-error hidden" id="s-msg-error"></div>' +
+      '<button class="btn btn-gold btn-block" id="s-msg-save">حفظ نصوص الرسائل</button>' +
     '</div>';
 
   [content.querySelector('#s-duration'), content.querySelector('#s-share')].forEach(bindDigitNormalization);
@@ -80,6 +148,24 @@ async function showSettingsTab(content) {
         adminPhone: adminPhone,
       });
       showToast('تم حفظ الإعدادات', 'success');
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.classList.remove('hidden');
+    }
+  }));
+
+  const sMsgSaveBtn = content.querySelector('#s-msg-save');
+  sMsgSaveBtn.addEventListener('click', withButtonLoading(sMsgSaveBtn, async () => {
+    const errEl = content.querySelector('#s-msg-error');
+    errEl.classList.add('hidden');
+    try {
+      await callApi('updateSettings', {
+        defaultDuration: s.defaultDuration,
+        defaultShareValue: s.defaultShareValue,
+        collectionMessage: content.querySelector('#s-msg-collection').value,
+        deliveryMessage: content.querySelector('#s-msg-delivery').value,
+      });
+      showToast('تم حفظ نصوص الرسائل', 'success');
     } catch (err) {
       errEl.textContent = err.message;
       errEl.classList.remove('hidden');
@@ -351,29 +437,46 @@ async function showMonthsSubTab(subContent, assoc) {
 }
 
 async function showMonthDetailModal(subContent, assoc, month) {
-  const [collection, delivery] = await Promise.all([
+  const [collection, delivery, settings] = await Promise.all([
     callApi('getCollectionData', { assocId: assoc.id, monthNum: month.monthNum }),
     callApi('getDeliveryData', { assocId: assoc.id, monthNum: month.monthNum }),
+    callApi('getSettings'),
   ]);
 
   openModal({
     title: 'الشهر ' + month.monthNum + ' — ' + assoc.name,
     bodyHtml:
       '<div class="card-title">التحصيل</div>' +
-      '<div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>العضو</th><th>القيمة</th><th>تم؟</th></tr></thead><tbody id="coll-rows"></tbody></table></div>' +
-      (delivery.length ? '<div class="card-title">التسليم</div><div class="table-wrap"><table><thead><tr><th>العضو</th><th>القيمة</th><th>تم؟</th></tr></thead><tbody id="del-rows"></tbody></table></div>' : '<p class="form-hint">لا يوجد تسليم مطلوب لهذا الشهر</p>'),
+      '<div class="table-wrap" style="margin-bottom:18px"><table><thead><tr><th>العضو</th><th>القيمة</th><th>تم؟</th><th>واتساب</th></tr></thead><tbody id="coll-rows"></tbody></table></div>' +
+      (delivery.length ? '<div class="card-title">التسليم</div><div class="table-wrap"><table><thead><tr><th>العضو</th><th>القيمة</th><th>تم؟</th><th>واتساب</th></tr></thead><tbody id="del-rows"></tbody></table></div>' : '<p class="form-hint">لا يوجد تسليم مطلوب لهذا الشهر</p>'),
     onMount: (modal) => {
       const collBody = modal.querySelector('#coll-rows');
       collection.forEach(c => {
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + c.memberName + '</td><td>' + formatCurrency(c.sharesValue) + '</td><td><input type="checkbox" ' + (c.collected ? 'checked' : '') + ' /></td>';
+        tr.innerHTML =
+          '<td>' + c.memberName + '</td><td>' + formatCurrency(c.sharesValue) + '</td>' +
+          '<td><input type="checkbox" ' + (c.collected ? 'checked' : '') + ' /></td>' +
+          '<td><a class="btn btn-success btn-sm wa-btn" target="_blank" rel="noopener" style="' + (c.collected ? '' : 'display:none') + '">واتساب</a></td>';
         const checkbox = tr.querySelector('input');
+        const waBtn = tr.querySelector('.wa-btn');
+
+        function updateWaLink() {
+          const message = fillTemplate(settings.collectionMessage, {
+            الاسم: c.memberName,
+            عدد_الاسهم: formatNumber(c.sharesCount),
+            قيمة_التحصيل: formatCurrency(c.sharesValue),
+          });
+          waBtn.href = buildWhatsAppLink(c.memberPhone, message);
+        }
+        updateWaLink();
+
         checkbox.addEventListener('change', async (e) => {
           if (checkbox.dataset.loading === '1') { e.preventDefault(); return; } // منع تكرار التبديل أثناء طلب سابق قيد التنفيذ
           checkbox.dataset.loading = '1';
           checkbox.disabled = true;
           try {
             await callApi('confirmCollection', { id: c.id, collected: e.target.checked });
+            waBtn.style.display = e.target.checked ? '' : 'none';
             showToast('تم التحديث', 'success');
           } catch (err) {
             e.target.checked = !e.target.checked; // تراجع بصري عن التبديل عند الفشل
@@ -385,17 +488,49 @@ async function showMonthDetailModal(subContent, assoc, month) {
         });
         collBody.appendChild(tr);
       });
+
       const delBody = modal.querySelector('#del-rows');
       if (delBody) delivery.forEach(d => {
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + d.memberName + '</td><td>' + formatCurrency(d.deliveryValue) + '</td><td><input type="checkbox" ' + (d.delivered ? 'checked' : '') + ' /></td>';
+        tr.innerHTML =
+          '<td>' + d.memberName + '</td><td>' + formatCurrency(d.deliveryValue) + '</td>' +
+          '<td><input type="checkbox" ' + (d.delivered ? 'checked' : '') + ' /></td>' +
+          '<td><a class="btn btn-success btn-sm wa-btn" target="_blank" rel="noopener" style="' + (d.delivered ? '' : 'display:none') + '">واتساب</a></td>';
         const checkbox = tr.querySelector('input');
+        const waBtn = tr.querySelector('.wa-btn');
+
+        // "المتبقي" يحتاج بيانات إضافية (إجمالي أسهم العضو + كل تسليماته المؤكَّدة) — تُجلَب عند الحاجة فقط
+        async function updateWaLink() {
+          const [subs, deliveryRows] = await Promise.all([
+            callApi('getSubscriptions', { assocId: assoc.id, memberId: d.memberId }),
+            callApi('getMemberDeliveryRows', { assocId: assoc.id, memberId: d.memberId }),
+          ]);
+          const totalShares = subs[0] ? Number(subs[0].sharesCount) : 0;
+          const totalEntitlement = totalShares * assoc.shareValue * assoc.duration;
+          const deliveredSoFar = deliveryRows.filter(r => r.delivered).reduce((s, r) => s + Number(r.deliveryValue), 0);
+          const remaining = Math.max(0, totalEntitlement - deliveredSoFar);
+          const now = new Date();
+          const message = fillTemplate(settings.deliveryMessage, {
+            الاسم: d.memberName,
+            عدد_الاسهم: formatNumber(totalShares),
+            رقم_الشهر: formatNumber(d.monthNum),
+            التاريخ: formatDualDate(month.date).combined,
+            اسهم_التسليم: formatNumber(d.sharesCount),
+            المتبقي: formatCurrency(remaining),
+            تاريخ_الوقت: now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('ar-SA'),
+          });
+          waBtn.href = buildWhatsAppLink(d.memberPhone, message);
+        }
+        if (d.delivered) updateWaLink();
+
         checkbox.addEventListener('change', async (e) => {
           if (checkbox.dataset.loading === '1') { e.preventDefault(); return; }
           checkbox.dataset.loading = '1';
           checkbox.disabled = true;
           try {
             await callApi('confirmDelivery', { id: d.id, delivered: e.target.checked });
+            waBtn.style.display = e.target.checked ? '' : 'none';
+            if (e.target.checked) await updateWaLink();
             showToast('تم التحديث', 'success');
           } catch (err) {
             e.target.checked = !e.target.checked;
@@ -414,7 +549,9 @@ async function showMonthDetailModal(subContent, assoc, month) {
 async function showWishesSubTab(subContent, assoc) {
   subContent.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   const wishes = await callApi('getWishes', { assocId: assoc.id });
-  subContent.innerHTML = '<div class="table-wrap mt-16"><table><thead><tr><th>العضو</th><th>الشهر</th><th>الأسهم</th><th></th></tr></thead><tbody id="wishes-body"></tbody></table></div>';
+  subContent.innerHTML =
+    '<div class="flex-between" style="margin:14px 0"><span></span><button class="btn btn-gold btn-sm" id="add-wish-btn">+ إضافة / تعديل رغبة</button></div>' +
+    '<div class="table-wrap"><table><thead><tr><th>العضو</th><th>الشهر</th><th>الأسهم</th><th></th></tr></thead><tbody id="wishes-body"></tbody></table></div>';
   const body = subContent.querySelector('#wishes-body');
   if (wishes.length === 0) body.innerHTML = '<tr><td colspan="4" class="table-empty">لا توجد رغبات بعد</td></tr>';
   wishes.forEach(w => {
@@ -429,6 +566,48 @@ async function showWishesSubTab(subContent, assoc) {
       } catch (err) { showToast(err.message, 'error'); }
     }));
     body.appendChild(tr);
+  });
+
+  // للمدير كامل الصلاحية لإضافة/تعديل رغبة أي عضو مشترك (saveWish يقبل isAdmin=true حتى في جمعية "نشطة")
+  subContent.querySelector('#add-wish-btn').addEventListener('click', async () => {
+    const [subs, months] = await Promise.all([
+      callApi('getSubscriptions', { assocId: assoc.id }),
+      callApi('getMonths', { assocId: assoc.id }),
+    ]);
+    if (subs.length === 0) { showToast('لا يوجد أعضاء مشتركون في هذه الجمعية بعد', 'error'); return; }
+    openModal({
+      title: 'إضافة / تعديل رغبة',
+      bodyHtml:
+        '<div class="form-group"><label class="form-label">العضو</label><select id="w-member" class="form-control">' +
+          subs.map(s => '<option value="' + s.memberId + '">' + s.memberName + ' (' + formatNumber(s.sharesCount) + ' سهم)</option>').join('') + '</select></div>' +
+        '<div class="form-group"><label class="form-label">الشهر</label><select id="w-month" class="form-control">' +
+          months.map(m => '<option value="' + m.monthNum + '"' + (m.closed ? ' disabled' : '') + '>الشهر ' + m.monthNum + (m.closed ? ' (مغلق)' : '') + '</option>').join('') + '</select></div>' +
+        '<div class="form-group"><label class="form-label">عدد الأسهم (0 لحذف رغبته لهذا الشهر)</label>' +
+          '<input id="w-shares" class="form-control" inputmode="decimal" placeholder="مثال: 2.5" /></div>' +
+        '<div class="form-error hidden" id="w-error"></div>' +
+        '<button class="btn btn-gold btn-block" id="w-save">حفظ</button>',
+      onMount: (modal) => {
+        bindDigitNormalization(modal.querySelector('#w-shares'));
+        const saveBtn = modal.querySelector('#w-save');
+        saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
+          const errEl = modal.querySelector('#w-error');
+          errEl.classList.add('hidden');
+          const memberId = modal.querySelector('#w-member').value;
+          const memberName = subs.find(s => s.memberId === memberId).memberName;
+          const monthNum = modal.querySelector('#w-month').value;
+          const shares = normalizeDigits(modal.querySelector('#w-shares').value) || '0';
+          try {
+            await callApi('saveWish', { assocId: assoc.id, memberId, memberName, monthNum, sharesCount: shares, isAdmin: true });
+            closeModal();
+            showToast('تم الحفظ بنجاح', 'success');
+            showWishesSubTab(subContent, assoc);
+          } catch (err) {
+            errEl.textContent = err.message;
+            errEl.classList.remove('hidden');
+          }
+        }));
+      },
+    });
   });
 }
 
