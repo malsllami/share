@@ -665,12 +665,12 @@ async function showArchiveTab(content) {
         '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
       '</div>';
     el.style.cursor = 'pointer';
-    el.addEventListener('click', () => showArchiveDetailModal(a));
+    el.addEventListener('click', () => showArchiveDetailModal(a, content));
     list.appendChild(el);
   });
 }
 
-async function showArchiveDetailModal(assoc) {
+async function showArchiveDetailModal(assoc, archiveContent) {
   const detail = await callApi('getArchivedAssociationDetail', { assocId: assoc.id });
   openModal({
     title: assoc.name + ' (مؤرشفة)',
@@ -680,8 +680,29 @@ async function showArchiveDetailModal(assoc) {
         detail.subscriptions.map(s => '<tr><td>' + s.memberName + '</td><td>' + formatNumber(s.sharesCount) + '</td></tr>').join('') +
       '</tbody></table></div>' +
       '<div class="card-title">التسليم</div>' +
-      '<div class="table-wrap"><table><thead><tr><th>العضو</th><th>الشهر</th><th>القيمة</th></tr></thead><tbody>' +
+      '<div class="table-wrap" style="margin-bottom:16px"><table><thead><tr><th>العضو</th><th>الشهر</th><th>القيمة</th></tr></thead><tbody>' +
         detail.delivery.map(d => '<tr><td>' + d.memberName + '</td><td>' + formatNumber(d.monthNum) + '</td><td>' + formatCurrency(d.deliveryValue) + '</td></tr>').join('') +
-      '</tbody></table></div>',
+      '</tbody></table></div>' +
+      '<div class="form-error hidden" id="archive-restore-err"></div>' +
+      '<button class="btn btn-outline" id="archive-restore-btn" type="button">استعادة هذه الجمعية من الأرشيف</button>' +
+      '<p style="font-size:12px;color:var(--text-muted);margin-top:8px">' +
+        'تُستخدم فقط لتصحيح أرشفة وقعت خطأً — تُعيد الجمعية وكل بياناتها للجداول النشطة، وتُعيد اشتقاق حالة كل شهر من سجلات التحصيل والتسليم الحقيقية تلقائياً.' +
+      '</p>',
+    onMount: (modal) => {
+      const btn = modal.querySelector('#archive-restore-btn');
+      const errEl = modal.querySelector('#archive-restore-err');
+      btn.addEventListener('click', withButtonLoading(btn, async () => {
+        errEl.classList.add('hidden');
+        try {
+          await callApi('restoreArchivedAssociation', { assocId: assoc.id });
+          closeModal();
+          showToast('تمت استعادة "' + assoc.name + '" إلى الجمعيات النشطة', 'success');
+          if (archiveContent) showArchiveTab(archiveContent);
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+        }
+      }));
+    },
   });
 }
