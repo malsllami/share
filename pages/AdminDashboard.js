@@ -9,6 +9,7 @@ import { buildFullPhone, extractLocalPart, formatPhoneDisplay, renderPhoneInputG
 import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading } from '../components/Button.js';
 import { fillTemplate, buildWhatsAppLink } from '../utils/template.js';
+import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
 import { renderMemberAssociationsView } from './MemberDashboard.js';
 
 // المدير عضو في نفس النظام بنفس الوقت (رقم جواله مسجَّل كعضو أيضاً) — تبويب "جمعياتي" يتيح له
@@ -569,35 +570,71 @@ async function showWishesSubTab(subContent, assoc) {
   });
 
   // للمدير كامل الصلاحية لإضافة/تعديل رغبة أي عضو مشترك (saveWish يقبل isAdmin=true حتى في جمعية "نشطة")
+  // نفس منتقي الأشهر المستخدَم بلوحة العضو (بطاقات ملوّنة + شريط ملخص)، يُعاد بناؤه عند تغيير العضو
   subContent.querySelector('#add-wish-btn').addEventListener('click', async () => {
     const [subs, months] = await Promise.all([
       callApi('getSubscriptions', { assocId: assoc.id }),
-      callApi('getMonths', { assocId: assoc.id }),
+      callApi('getMonthsWithTotals', { assocId: assoc.id }),
     ]);
     if (subs.length === 0) { showToast('لا يوجد أعضاء مشتركون في هذه الجمعية بعد', 'error'); return; }
+
     openModal({
       title: 'إضافة / تعديل رغبة',
       bodyHtml:
         '<div class="form-group"><label class="form-label">العضو</label><select id="w-member" class="form-control">' +
           subs.map(s => '<option value="' + s.memberId + '">' + s.memberName + ' (' + formatNumber(s.sharesCount) + ' سهم)</option>').join('') + '</select></div>' +
-        '<div class="form-group"><label class="form-label">الشهر</label><select id="w-month" class="form-control">' +
-          months.map(m => '<option value="' + m.monthNum + '"' + (m.closed ? ' disabled' : '') + '>الشهر ' + m.monthNum + (m.closed ? ' (مغلق)' : '') + '</option>').join('') + '</select></div>' +
-        '<div class="form-group"><label class="form-label">عدد الأسهم (0 لحذف رغبته لهذا الشهر)</label>' +
-          '<input id="w-shares" class="form-control" inputmode="decimal" placeholder="مثال: 2.5" /></div>' +
-        '<div class="form-error hidden" id="w-error"></div>' +
-        '<button class="btn btn-gold btn-block" id="w-save">حفظ</button>',
+        '<div id="w-picker-wrap"><div id="w-picker"></div></div>' +
+        '<div id="w-shares-step" class="hidden">' +
+          '<button class="btn btn-outline btn-sm" id="w-back-btn" type="button">→ رجوع لاختيار الشهر</button>' +
+          '<div class="form-group mt-16"><label class="form-label" id="w-shares-label">عدد الأسهم</label>' +
+            '<input id="w-shares" class="form-control" inputmode="decimal" placeholder="مثال: 2.5" /></div>' +
+          '<div class="form-error hidden" id="w-error"></div>' +
+          '<button class="btn btn-gold btn-block" id="w-save">حفظ</button>' +
+        '</div>',
       onMount: (modal) => {
+        const memberSelect = modal.querySelector('#w-member');
+        const pickerWrap = modal.querySelector('#w-picker-wrap');
+        const picker = modal.querySelector('#w-picker');
+        const sharesStep = modal.querySelector('#w-shares-step');
+        let currentMonth = null;
+
+        async function renderPickerForSelectedMember() {
+          const memberId = memberSelect.value;
+          const sub = subs.find(s => s.memberId === memberId);
+          const wishesForMember = await callApi('getWishes', { assocId: assoc.id, memberId });
+          const wishedTotal = wishesForMember.reduce((s, w) => s + Number(w.sharesCount), 0);
+          const sharesLeft = Math.max(0, Number(sub.sharesCount) - wishedTotal);
+          const existingByMonth = new Map(wishesForMember.map(w => [Number(w.monthNum), w]));
+          renderWishMonthPicker(picker, {
+            assoc, months, memberSharesLeft: sharesLeft, existingWishByMonth: existingByMonth,
+            onSelect: (month, existing) => {
+              currentMonth = month;
+              modal.querySelector('#w-shares-label').textContent = 'عدد الأسهم للشهر ' + month.monthNum + ' (0 لحذف الرغبة)';
+              modal.querySelector('#w-shares').value = existing ? existing.sharesCount : '';
+              pickerWrap.classList.add('hidden');
+              sharesStep.classList.remove('hidden');
+            },
+          });
+        }
+
+        memberSelect.addEventListener('change', renderPickerForSelectedMember);
+        renderPickerForSelectedMember();
+
+        modal.querySelector('#w-back-btn').addEventListener('click', () => {
+          sharesStep.classList.add('hidden');
+          pickerWrap.classList.remove('hidden');
+        });
+
         bindDigitNormalization(modal.querySelector('#w-shares'));
         const saveBtn = modal.querySelector('#w-save');
         saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
           const errEl = modal.querySelector('#w-error');
           errEl.classList.add('hidden');
-          const memberId = modal.querySelector('#w-member').value;
+          const memberId = memberSelect.value;
           const memberName = subs.find(s => s.memberId === memberId).memberName;
-          const monthNum = modal.querySelector('#w-month').value;
           const shares = normalizeDigits(modal.querySelector('#w-shares').value) || '0';
           try {
-            await callApi('saveWish', { assocId: assoc.id, memberId, memberName, monthNum, sharesCount: shares, isAdmin: true });
+            await callApi('saveWish', { assocId: assoc.id, memberId, memberName, monthNum: currentMonth.monthNum, sharesCount: shares, isAdmin: true });
             closeModal();
             showToast('تم الحفظ بنجاح', 'success');
             showWishesSubTab(subContent, assoc);

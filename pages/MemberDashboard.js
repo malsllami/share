@@ -4,9 +4,9 @@ import { renderAppHeader, wireHeaderEvents } from '../components/Header.js';
 import { openModal, closeModal } from '../components/Modal.js';
 import { showToast } from '../components/Toast.js';
 import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits } from '../utils/numbers.js';
-import { renderDualDateHtml } from '../utils/dates.js';
 import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading } from '../components/Button.js';
+import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
 
 const STATUS_LABEL = { 'جديدة': 'جديدة', 'نشطة': 'نشطة', 'منتهية': 'منتهية' };
 
@@ -100,7 +100,7 @@ async function showAssociationDetail(content, session, assoc) {
 
     '<div class="section-title mt-16">وزّع أسهمك على شهر الاستلام</div>' +
     '<p class="form-hint" style="margin-bottom:12px">اختر شهراً لتحديد كم سهماً تريد استلام قيمته فيه. لا يمكن أن يتجاوز مجموع ما توزّعه أسهمك الكلية.</p>' +
-    '<div class="wish-grid" id="wish-grid"></div>' +
+    '<div id="wish-picker"></div>' +
 
     '<div class="section-title mt-16">حالة التحصيل الشهري</div>' +
     '<div class="table-wrap"><table><thead><tr><th>الشهر</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody id="coll-body"></tbody></table></div>' +
@@ -112,22 +112,10 @@ async function showAssociationDetail(content, session, assoc) {
 
   content.querySelector('#back-to-list').addEventListener('click', () => renderMemberAssociationsView(content, session));
 
-  const wishGrid = content.querySelector('#wish-grid');
-  months.forEach(m => {
-    const myWish = wishes.find(w => w.monthNum == m.monthNum);
-    const isClosed = m.closed;
-    const pctUsed = m.availRiyal > 0 ? Math.min(100, (m.usedRiyal / m.availRiyal) * 100) : 0;
-    const card = document.createElement('div');
-    card.className = 'wish-month-card' + (myWish ? ' selected' : '') + (isClosed ? ' closed' : '') + (!myWish && m.remainRiyal <= 0 ? ' full' : '');
-    card.innerHTML =
-      '<div class="wish-month-num">' + formatNumber(m.monthNum) + '</div>' +
-      renderDualDateHtml(m.date) +
-      '<div class="wish-month-info">' + (myWish ? 'لك ' + formatNumber(myWish.sharesCount) + ' سهم هنا' : (isClosed ? 'مغلق' : formatCurrency(m.remainRiyal) + ' متاح')) + '</div>' +
-      '<div class="capacity-bar-wrap"><div class="capacity-bar"><div class="capacity-bar-fill" style="width:' + pctUsed.toFixed(0) + '%"></div></div></div>';
-    if (!isClosed) {
-      card.addEventListener('click', () => openWishModal(content, session, assoc, m, myWish, mySharesLeft));
-    }
-    wishGrid.appendChild(card);
+  const existingWishByMonth = new Map(wishes.map(w => [Number(w.monthNum), w]));
+  renderWishMonthPicker(content.querySelector('#wish-picker'), {
+    assoc, months, memberSharesLeft: mySharesLeft, existingWishByMonth,
+    onSelect: (month, existingWish) => openWishModal(content, session, assoc, month, existingWish, mySharesLeft),
   });
 
   const collBody = content.querySelector('#coll-body');
