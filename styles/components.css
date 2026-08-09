@@ -122,6 +122,19 @@
 .progress-bar-fill.danger { background: linear-gradient(90deg, #7f1d1d, var(--danger)); }
 .capacity-label, .progress-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); margin-top: 6px; font-weight: 600; }
 
+/* تمييز بصري بين شريط أساسي (تقدّم الجمعية الزمني — العنصر الأهم) وشريط ثانوي (حالة اختيار
+   فرعية كرغبات الاستلام) — الأساسي أثخن وأوضح، الثانوي أنحف وأهدأ لونياً حتى لا يتنافسا بصرياً */
+.progress-wrap.primary .progress-bar { height: 11px; }
+.progress-wrap.primary .progress-label { font-size: 12.5px; font-weight: 800; color: var(--text-2); }
+.progress-wrap.secondary .progress-bar { height: 5px; }
+.progress-wrap.secondary .progress-label { font-size: 10px; font-weight: 600; color: var(--text-3); margin-top: 5px; }
+
+/* ── بطاقة تنقّل (Hub → Detail): تُفتح عند الضغط لعرض شاشة متخصصة داخل نافذة منبثقة ── */
+.nav-card { cursor: pointer; transition: all .22s var(--ease); }
+.nav-card:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }
+.nav-card .nav-card-chevron { color: var(--text-3); font-size: 20px; flex-shrink: 0; }
+.nav-card .nav-card-title { font-family: 'Sora', sans-serif; font-size: 14.5px; font-weight: 700; }
+
 /* ── إشارة عضو مكتمل توزيع أسهمه بالكامل (مُجمَّد) في قائمة اختيار الرغبات ── */
 .member-frozen-tag { color: var(--warning); font-weight: 800; }
 

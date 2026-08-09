@@ -1,4 +1,6 @@
-// لوحة العضو — بطاقة ملفي، جمعياتي، توزيع الرغبات على الأشهر، وحالة التحصيل/التسليم الخاصة بي
+// لوحة العضو — بطاقة ملفي، جمعياتي (كمركز/Hub مختصر)، وشاشات متخصصة منبثقة لكل تفصيل
+// (توزيع الرغبات / أشهر الاستلام المحدَّدة / حالة التحصيل) بدل صفحة طويلة واحدة يجب التمرير فيها بالكامل —
+// أقرب لتجربة تطبيق جوال حقيقي: الرئيسية = ملخص سريع + أزرار، والتفاصيل = شاشات مخصصة عند الحاجة فقط.
 import { callApi } from '../services/api.js';
 import { renderAppHeader, wireHeaderEvents } from '../components/Header.js';
 import { openModal, closeModal } from '../components/Modal.js';
@@ -21,7 +23,20 @@ export async function renderMemberDashboard(root, { session, onLogout }) {
   await renderMemberAssociationsView(content, session);
 }
 
-// عرض "جمعياتي" (بطاقة ملف + قائمة + تفصيل) بلا رأس صفحة مستقل — قابل لإعادة الاستخدام داخل لوحة
+// بطاقة تنقّل قابلة للنقر (Hub → Detail) — عنوان + محتوى مختصر اختياري + سهم يشير لوجود المزيد
+function navCardHtml(id, icon, title, bodyHtml) {
+  return (
+    '<div class="card nav-card mt-16" id="' + id + '">' +
+      '<div class="flex-between">' +
+        '<div class="nav-card-title">' + icon + ' ' + title + '</div>' +
+        '<span class="nav-card-chevron">‹</span>' +
+      '</div>' +
+      (bodyHtml ? '<div class="mt-16">' + bodyHtml + '</div>' : '') +
+    '</div>'
+  );
+}
+
+// عرض "جمعياتي" (بطاقة ملف + قائمة) بلا رأس صفحة مستقل — قابل لإعادة الاستخدام داخل لوحة
 // المدير أيضاً (المدير عضو بنفس الوقت في هذا النظام، وله جمعياته ورغباته الخاصة كأي عضو آخر).
 export async function renderMemberAssociationsView(content, session) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
@@ -88,17 +103,20 @@ export async function renderMemberAssociationsView(content, session) {
         '<div class="assoc-meta-item"><div class="assoc-meta-label">أسهمي في الجمعية</div><div class="assoc-meta-val">' + formatNumber(a.sub.sharesCount) + ' سهم</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
       '</div>' +
-      '<div class="progress-wrap">' + renderProgressBarHtml(prog.percent) +
+      '<div class="progress-wrap primary">' + renderProgressBarHtml(prog.percent) +
         '<div class="progress-label">' + (notStartedYet
           ? '<span>لم تبدأ بعد</span><span>تبدأ خلال ' + formatNumber(daysToStart) + ' يوم</span>'
           : '<span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span>') + '</div></div>' +
-      '<div class="progress-wrap">' + renderProgressBarHtml(wishedPercent, 'success') +
+      '<div class="progress-wrap secondary">' + renderProgressBarHtml(wishedPercent, 'success') +
         '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(wishedTotal) + ' / ' + formatNumber(a.sub.sharesCount) + ' سهم</span></div></div>';
     el.addEventListener('click', () => showAssociationDetail(content, session, a));
     list.appendChild(el);
   });
 }
 
+// شاشة تفصيل الجمعية — أصبحت "مركزاً" (Hub) مختصراً: بطاقة معلومات أساسية + تقدّم زمني بارز فقط،
+// تليها 3 بطاقات تنقّل (وليس محتوى كامل مباشرة) تفتح كل منها شاشة متخصصة (نافذة منبثقة) عند الحاجة —
+// بدل عرض كل الجداول والتفاصيل دفعة واحدة في صفحة طويلة يجب التمرير فيها بالكامل.
 async function showAssociationDetail(content, session, assoc) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let months, wishes, collectionRows, deliveryRows;
@@ -124,8 +142,14 @@ async function showAssociationDetail(content, session, assoc) {
   const currentMonthNum = Math.min(assoc.duration, prog.elapsedMonths + 1);
   const monthDateByNum = new Map(months.map(m => [Number(m.monthNum), m.date]));
 
+  const collectedCount = collectionRows.filter(r => r.collected).length;
+  const collectionTotalCount = collectionRows.length;
+  const collectionPendingCount = collectionTotalCount - collectedCount;
+
   content.innerHTML =
     '<button class="btn btn-outline btn-sm" id="back-to-list">→ رجوع للجمعيات</button>' +
+
+    // البطاقة الأساسية — معلومات ثابتة + مؤشر تقدّم الجمعية الزمني فقط (العنصر الأهم بصرياً هنا)
     '<div class="card mt-16">' +
       '<div class="flex-between">' +
         '<div class="assoc-name">🏠 ' + assoc.name + '</div>' +
@@ -137,75 +161,108 @@ async function showAssociationDetail(content, session, assoc) {
         '<div class="assoc-meta-item"><div class="assoc-meta-label">الشهر الحالي</div><div class="assoc-meta-val">' + (notStartedYet ? '—' : formatNumber(currentMonthNum) + ' / ' + formatNumber(assoc.duration)) + '</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي استحقاقي</div><div class="assoc-meta-val">' + formatCurrency(mySharesTotal * assoc.shareValue * assoc.duration) + '</div></div>' +
       '</div>' +
-      '<div class="progress-wrap mt-16">' + renderProgressBarHtml(prog.percent) +
+      '<div class="progress-wrap primary mt-16">' + renderProgressBarHtml(prog.percent) +
         '<div class="progress-label">' + (notStartedYet
           ? '<span>لم تبدأ بعد</span><span>تبدأ خلال ' + formatNumber(daysToStart) + ' يوم</span>'
           : '<span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span>') + '</div></div>' +
-      '<div class="progress-wrap">' + renderProgressBarHtml(wishedPercent, 'success') +
-        '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(myWishedTotal) + ' / ' + formatNumber(mySharesTotal) + ' سهم</span></div></div>' +
-      (deliveryRows.length ? (
-        '<div class="card-title mt-16">🗓 أشهر استلامي المحدَّدة</div>' +
-        '<div class="mpc-delivery-list" id="del-list"></div>'
-      ) : '') +
     '</div>' +
 
-    '<div class="section-title mt-16">وزّع أسهمك على شهر الاستلام</div>' +
-    '<p class="form-hint" style="margin-bottom:12px">اختر شهراً لتحديد كم سهماً تريد استلام قيمته فيه. لا يمكن أن يتجاوز مجموع ما توزّعه أسهمك الكلية.</p>' +
-    '<div id="wish-picker"></div>' +
+    // بطاقة تنقّل: منتقي أشهر الرغبات (شاشة مستقلة عند الفتح)
+    navCardHtml('nav-wishes', '🎯', 'وزّع أسهمك على شهر الاستلام',
+      '<p class="form-hint" style="margin:0">اختر شهراً لتحديد كم سهماً تريد استلام قيمته فيه</p>') +
 
-    '<div class="section-title mt-16">حالة التحصيل الشهري</div>' +
-    '<div class="table-wrap"><table><thead><tr><th>الشهر</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody id="coll-body"></tbody></table></div>';
+    // بطاقة تنقّل: أشهر استلامي المحدَّدة — معاينة مختصرة (مؤشر ثانوي فقط) + تفتح القائمة الكاملة
+    (deliveryRows.length ? navCardHtml('nav-delivery', '🗓', 'أشهر استلامي المحدَّدة',
+      '<div class="progress-wrap secondary" style="margin-top:0">' + renderProgressBarHtml(wishedPercent, 'success') +
+        '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(myWishedTotal) + ' / ' + formatNumber(mySharesTotal) + ' سهم</span></div></div>'
+    ) : '') +
+
+    // بطاقة تنقّل: حالة التحصيل الشهري — ملخص مضغوط (عدد/ألوان) بدل الجدول كاملاً
+    (collectionTotalCount ? navCardHtml('nav-collection', '💰', 'حالة التحصيل الشهري',
+      '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + formatNumber(collectedCount) + ' / ' + formatNumber(collectionTotalCount) + ' أشهر تم تحصيلها</div>' +
+      '<span class="badge badge-success">🟢 ' + formatNumber(collectedCount) + ' تم التحصيل</span> ' +
+      '<span class="badge badge-warning">🟡 ' + formatNumber(collectionPendingCount) + ' بانتظار التحصيل</span>'
+    ) : '');
 
   content.querySelector('#back-to-list').addEventListener('click', () => renderMemberAssociationsView(content, session));
 
   const existingWishByMonth = new Map(wishes.map(w => [Number(w.monthNum), w]));
-  renderWishMonthPicker(content.querySelector('#wish-picker'), {
-    assoc, months, memberSharesLeft: mySharesLeft, existingWishByMonth,
-    onSelect: (month, existingWish) => openWishModal(content, session, assoc, month, existingWish, mySharesLeft),
+  content.querySelector('#nav-wishes').addEventListener('click', () => {
+    openModal({
+      title: 'وزّع أسهمك على شهر الاستلام',
+      bodyHtml: '<div id="wish-picker"></div>',
+      onMount: () => {
+        renderWishMonthPicker(document.getElementById('wish-picker'), {
+          assoc, months, memberSharesLeft: mySharesLeft, existingWishByMonth,
+          onSelect: (month, existingWish) => openWishModal(content, session, assoc, month, existingWish, mySharesLeft),
+        });
+      },
+    });
   });
 
-  const collBody = content.querySelector('#coll-body');
-  if (collectionRows.length === 0) {
-    collBody.innerHTML = '<tr><td colspan="4" class="table-empty">لا توجد سجلات بعد</td></tr>';
-  } else {
-    collectionRows.sort((a, b) => a.monthNum - b.monthNum).forEach(r => {
-      collBody.innerHTML +=
-        '<tr><td>' + formatNumber(r.monthNum) + '</td><td>' + (r.confirmDate ? new Date(r.confirmDate).toLocaleDateString('en-GB') : '—') + '</td>' +
-        '<td>' + formatCurrency(r.sharesValue) + '</td>' +
-        '<td><span class="badge badge-' + (r.collected ? 'success' : 'warning') + '">' + (r.collected ? 'تم التحصيل' : 'بانتظار التحصيل') + '</span></td></tr>';
-    });
-  }
+  const navDelivery = content.querySelector('#nav-delivery');
+  if (navDelivery) navDelivery.addEventListener('click', () => openDeliveryListModal(assoc, deliveryRows, monthDateByNum));
 
-  // قائمة أشهر الاستلام: دائرة رقم ملوّنة حسب الإلحاح (منجَز أخضر / هذا الشهر أو متأخر أحمر / قريب
-  // خلال 30 يوماً ذهبي / بعيد محايد) + شارة عدّ تنازلي بالأيام — بيانات حقيقية من تأكيد التسليم الفعلي
-  const delList = content.querySelector('#del-list');
-  if (delList) {
-    deliveryRows.sort((a, b) => a.monthNum - b.monthNum).forEach(r => {
-      let state = '';
-      let countdownClass = '';
-      let countdownText;
-      if (r.delivered) {
-        state = 'state-done'; countdownClass = 'done';
-        countdownText = '✓ تم' + (r.confirmDate ? ' — ' + new Date(r.confirmDate).toLocaleDateString('en-GB') : '');
-      } else {
-        const d = daysUntil(monthDateByNum.get(Number(r.monthNum)));
-        if (d === null || d <= 0) { state = 'state-current'; countdownClass = 'urgent'; countdownText = 'هذا الشهر'; }
-        else if (d <= 30) { state = 'state-soon'; countdownClass = 'soon'; countdownText = 'بعد ' + formatNumber(d) + ' يوم'; }
-        else { countdownText = 'بعد ' + formatNumber(d) + ' يوم'; }
+  const navCollection = content.querySelector('#nav-collection');
+  if (navCollection) navCollection.addEventListener('click', () => openCollectionTableModal(collectionRows));
+}
+
+// شاشة "أشهر استلامي المحدَّدة" الكاملة — دائرة رقم ملوّنة حسب الإلحاح (منجَز أخضر / هذا الشهر أو
+// متأخر أحمر / قريب خلال 30 يوماً ذهبي / بعيد محايد) + شارة عدّ تنازلي بالأيام
+function openDeliveryListModal(assoc, deliveryRows, monthDateByNum) {
+  openModal({
+    title: '🗓 أشهر استلامي المحدَّدة — ' + assoc.name,
+    bodyHtml: '<div class="mpc-delivery-list" id="del-list"></div>',
+    onMount: () => {
+      const delList = document.getElementById('del-list');
+      deliveryRows.slice().sort((a, b) => a.monthNum - b.monthNum).forEach(r => {
+        let state = '';
+        let countdownClass = '';
+        let countdownText;
+        if (r.delivered) {
+          state = 'state-done'; countdownClass = 'done';
+          countdownText = '✓ تم' + (r.confirmDate ? ' — ' + new Date(r.confirmDate).toLocaleDateString('en-GB') : '');
+        } else {
+          const d = daysUntil(monthDateByNum.get(Number(r.monthNum)));
+          if (d === null || d <= 0) { state = 'state-current'; countdownClass = 'urgent'; countdownText = 'هذا الشهر'; }
+          else if (d <= 30) { state = 'state-soon'; countdownClass = 'soon'; countdownText = 'بعد ' + formatNumber(d) + ' يوم'; }
+          else { countdownText = 'بعد ' + formatNumber(d) + ' يوم'; }
+        }
+
+        const row = document.createElement('div');
+        row.className = 'mpc-delivery-row ' + state;
+        row.innerHTML =
+          '<div class="mpc-delivery-month">' + formatNumber(r.monthNum) + '</div>' +
+          '<div class="mpc-delivery-info">' +
+            '<div class="mpc-delivery-shares">' + formatNumber(r.sharesCount) + ' سهم</div>' +
+            '<div class="mpc-delivery-value">' + formatCurrency(r.deliveryValue) + '</div>' +
+          '</div>' +
+          '<div class="mpc-delivery-countdown ' + countdownClass + '">' + countdownText + '</div>';
+        delList.appendChild(row);
+      });
+    },
+  });
+}
+
+// شاشة "حالة التحصيل الشهري" الكاملة — الجدول التفصيلي بكل شهر وتاريخه وحالته
+function openCollectionTableModal(collectionRows) {
+  openModal({
+    title: '💰 حالة التحصيل الشهري',
+    bodyHtml: '<div class="table-wrap"><table><thead><tr><th>الشهر</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody id="coll-body"></tbody></table></div>',
+    onMount: () => {
+      const collBody = document.getElementById('coll-body');
+      if (collectionRows.length === 0) {
+        collBody.innerHTML = '<tr><td colspan="4" class="table-empty">لا توجد سجلات بعد</td></tr>';
+        return;
       }
-
-      const row = document.createElement('div');
-      row.className = 'mpc-delivery-row ' + state;
-      row.innerHTML =
-        '<div class="mpc-delivery-month">' + formatNumber(r.monthNum) + '</div>' +
-        '<div class="mpc-delivery-info">' +
-          '<div class="mpc-delivery-shares">' + formatNumber(r.sharesCount) + ' سهم</div>' +
-          '<div class="mpc-delivery-value">' + formatCurrency(r.deliveryValue) + '</div>' +
-        '</div>' +
-        '<div class="mpc-delivery-countdown ' + countdownClass + '">' + countdownText + '</div>';
-      delList.appendChild(row);
-    });
-  }
+      collectionRows.slice().sort((a, b) => a.monthNum - b.monthNum).forEach(r => {
+        collBody.innerHTML +=
+          '<tr><td>' + formatNumber(r.monthNum) + '</td><td>' + (r.confirmDate ? new Date(r.confirmDate).toLocaleDateString('en-GB') : '—') + '</td>' +
+          '<td>' + formatCurrency(r.sharesValue) + '</td>' +
+          '<td><span class="badge badge-' + (r.collected ? 'success' : 'warning') + '">' + (r.collected ? 'تم التحصيل' : 'بانتظار التحصيل') + '</span></td></tr>';
+      });
+    },
+  });
 }
 
 function openWishModal(content, session, assoc, month, existingWish, mySharesLeft) {

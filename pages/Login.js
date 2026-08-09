@@ -41,6 +41,9 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         '<div id="login-step-bio" class="hidden">' +
           '<div class="login-sub" id="login-bio-text" style="margin-bottom:18px"></div>' +
           '<button id="login-bio-btn" class="bio-btn"><span class="bio-ring"></span><span id="login-bio-btn-text">الدخول ببصمة الجهاز</span></button>' +
+          '<p class="login-sub hidden" id="login-bio-status" style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px">' +
+            '<span class="spinner" style="width:15px;height:15px;border-width:2px;margin:0"></span><span>جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</span>' +
+          '</p>' +
           '<button id="login-back-btn" class="login-back" type="button">تغيير رقم الجوال</button>' +
         '</div>' +
       '</div>' +
@@ -54,6 +57,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   const bioText = root.querySelector('#login-bio-text');
   const bioBtn = root.querySelector('#login-bio-btn');
   const bioBtnText = root.querySelector('#login-bio-btn-text');
+  const bioStatus = root.querySelector('#login-bio-status');
   const phoneError = root.querySelector('#login-phone-error');
 
   let currentPhone = null;
@@ -119,6 +123,10 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   });
 
   bioBtn.addEventListener('click', withButtonLoading(bioBtn, async () => {
+    // زر البصمة نفسه يتحوّل لشريط تقدّم بلا نص (سلوك موحّد لكل أزرار الموقع)، لكن هذا وحده لا يوضّح
+    // للمستخدم أنه يجب إكمال العملية في نافذة النظام (البصمة/التعرف على الوجه) التي قد تستغرق ثوانٍ —
+    // فيظهر نص حالة صريح تحت الزر طوال هذه الفترة بدل أن يبدو الزر "فارغاً بلا استجابة"
+    bioStatus.classList.remove('hidden');
     try {
       if (currentMode === 'register') {
         const reg = await registerDeviceCredential({
@@ -156,6 +164,8 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       onLoginSuccess();
     } catch (err) {
       showToast(err.message || 'فشل الدخول بالبصمة', 'error');
+    } finally {
+      bioStatus.classList.add('hidden');
     }
   }));
 }
