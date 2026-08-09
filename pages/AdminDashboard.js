@@ -7,7 +7,7 @@ import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits }
 import { renderDualDateHtml, formatDualDate, computeDurationProgress, computeMonthProgress, renderProgressBarHtml } from '../utils/dates.js';
 import { buildFullPhone, extractLocalPart, formatPhoneDisplay, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
-import { withButtonLoading } from '../components/Button.js';
+import { withButtonLoading, withCardLoading } from '../components/Button.js';
 import { fillTemplate, buildWhatsAppLink } from '../utils/template.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
 import { renderMemberAssociationsView } from './MemberDashboard.js';
@@ -305,7 +305,7 @@ async function showAssociationsTab(content, session) {
           '<div class="capacity-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' شهر (' + prog.percent + '٪)</span>' +
           '<span>متبقٍ ' + formatNumber(prog.remainingMonths) + ' شهر / ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>'
       ) : '');
-    el.addEventListener('click', () => showAssociationAdminDetail(content, session, a));
+    el.addEventListener('click', withCardLoading(el, () => showAssociationAdminDetail(content, session, a)));
     list.appendChild(el);
   });
 
@@ -518,7 +518,7 @@ async function showMonthsSubTab(subContent, assoc) {
           '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(cs.deliveryPending) + '</div></div>'
         ) : '') +
       '</div>';
-    el.addEventListener('click', () => showMonthDetailModal(subContent, assoc, m));
+    el.addEventListener('click', withCardLoading(el, () => showMonthDetailModal(subContent, assoc, m)));
     list.appendChild(el);
   });
 }
@@ -760,7 +760,7 @@ async function showArchiveTab(content) {
         '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
       '</div>';
     el.style.cursor = 'pointer';
-    el.addEventListener('click', () => showArchiveDetailModal(a, content));
+    el.addEventListener('click', withCardLoading(el, () => showArchiveDetailModal(a, content)));
     list.appendChild(el);
   });
 }

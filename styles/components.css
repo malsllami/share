@@ -73,6 +73,7 @@
 /* ── بطاقة الجمعية ── */
 .assoc-card { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--border-2); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--sh); cursor: pointer; transition: all .22s var(--ease); }
 .assoc-card:hover { box-shadow: var(--sh-md); transform: translateY(-3px); }
+.assoc-card:active { transform: scale(.97); }
 .assoc-card.status-نشطة { border-top-color: var(--success); }
 .assoc-card.status-منتهية { border-top-color: var(--text-3); }
 .assoc-card.status-جديدة { border-top-color: var(--gold); }
@@ -132,6 +133,7 @@
 /* ── بطاقة تنقّل (Hub → Detail): تُفتح عند الضغط لعرض شاشة متخصصة داخل نافذة منبثقة ── */
 .nav-card { cursor: pointer; transition: all .22s var(--ease); }
 .nav-card:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }
+.nav-card:active { transform: scale(.97); }
 .nav-card .nav-card-chevron { color: var(--text-3); font-size: 20px; flex-shrink: 0; }
 .nav-card .nav-card-title { font-family: 'Sora', sans-serif; font-size: 14.5px; font-weight: 700; }
 

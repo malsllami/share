@@ -9,7 +9,7 @@ import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits }
 import { computeDurationProgress, renderProgressBarHtml, daysUntil } from '../utils/dates.js';
 import { formatPhoneDisplay } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
-import { withButtonLoading } from '../components/Button.js';
+import { withButtonLoading, withCardLoading } from '../components/Button.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
 
 const STATUS_LABEL = { 'جديدة': 'جديدة', 'نشطة': 'نشطة', 'منتهية': 'منتهية' };
@@ -109,7 +109,7 @@ export async function renderMemberAssociationsView(content, session) {
           : '<span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span>') + '</div></div>' +
       '<div class="progress-wrap secondary">' + renderProgressBarHtml(wishedPercent, 'success') +
         '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(wishedTotal) + ' / ' + formatNumber(a.sub.sharesCount) + ' سهم</span></div></div>';
-    el.addEventListener('click', () => showAssociationDetail(content, session, a));
+    el.addEventListener('click', withCardLoading(el, () => showAssociationDetail(content, session, a)));
     list.appendChild(el);
   });
 }
