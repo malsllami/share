@@ -1,10 +1,11 @@
-// لوحة العضو — جمعياتي، توزيع الرغبات على الأشهر، وحالة التحصيل/التسليم الخاصة بي
+// لوحة العضو — بطاقة ملفي، جمعياتي، توزيع الرغبات على الأشهر، وحالة التحصيل/التسليم الخاصة بي
 import { callApi } from '../services/api.js';
 import { renderAppHeader, wireHeaderEvents } from '../components/Header.js';
 import { openModal, closeModal } from '../components/Modal.js';
 import { showToast } from '../components/Toast.js';
 import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits } from '../utils/numbers.js';
-import { computeDurationProgress, renderProgressBarHtml } from '../utils/dates.js';
+import { computeDurationProgress, renderProgressBarHtml, daysUntil } from '../utils/dates.js';
+import { formatPhoneDisplay } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading } from '../components/Button.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
@@ -20,51 +21,75 @@ export async function renderMemberDashboard(root, { session, onLogout }) {
   await renderMemberAssociationsView(content, session);
 }
 
-// عرض "جمعياتي" (قائمة + تفصيل) بلا رأس صفحة مستقل — قابل لإعادة الاستخدام داخل لوحة المدير
-// أيضاً (المدير عضو بنفس الوقت في هذا النظام، وله جمعياته ورغباته الخاصة كأي عضو آخر).
+// عرض "جمعياتي" (بطاقة ملف + قائمة + تفصيل) بلا رأس صفحة مستقل — قابل لإعادة الاستخدام داخل لوحة
+// المدير أيضاً (المدير عضو بنفس الوقت في هذا النظام، وله جمعياته ورغباته الخاصة كأي عضو آخر).
 export async function renderMemberAssociationsView(content, session) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  let subs, associations;
+  let subs, associations, myWishes, members;
   try {
-    [subs, associations] = await Promise.all([
+    [subs, associations, myWishes, members] = await Promise.all([
       callApi('getSubscriptions', { memberId: session.memberId }),
       callApi('getAssociations'),
+      callApi('getWishes', { memberId: session.memberId }),
+      callApi('getMembers'),
     ]);
   } catch (err) {
     content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
     return;
   }
 
+  const me = members.find(m => m.id === session.memberId);
   const mine = associations
     .filter(a => subs.some(s => s.assocId === a.id))
     .map(a => ({ ...a, sub: subs.find(s => s.assocId === a.id) }));
 
+  // ── بطاقة ملف العضو: صورة رمزية بأول حرف من الاسم + رقمه + 3 إحصائيات إجمالية عبر كل جمعياته ──
+  const totalShares = mine.reduce((s, a) => s + Number(a.sub.sharesCount), 0);
+  const totalEntitlement = mine.reduce((s, a) => s + Number(a.sub.sharesCount) * a.shareValue * a.duration, 0);
+  const profileHtml =
+    '<div class="mpc-block">' +
+      '<div class="mpc-header">' +
+        '<div class="mpc-avatar">' + (session.memberName ? session.memberName.trim().charAt(0) : '؟') + '</div>' +
+        '<div class="mpc-name">' + session.memberName + '</div>' +
+        (me ? '<div class="mpc-phone">📱 ' + formatPhoneDisplay(me.phone) + '</div>' : '') +
+      '</div>' +
+      '<div class="mpc-body">' +
+        '<div class="mpc-stats">' +
+          '<div class="mpc-stat"><div class="mpc-stat-val">' + formatCurrency(totalEntitlement) + '</div><div class="mpc-stat-label">إجمالي استحقاقي</div></div>' +
+          '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(totalShares) + '</div><div class="mpc-stat-label">إجمالي أسهمي</div></div>' +
+          '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(mine.length) + '</div><div class="mpc-stat-label">جمعياتي</div></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
   if (mine.length === 0) {
-    content.innerHTML = '<div class="card text-center"><p style="color:var(--text-3)">لست مشتركاً في أي جمعية بعد. تواصل مع المدير للاشتراك.</p></div>';
+    content.innerHTML = profileHtml + '<div class="card text-center"><p style="color:var(--text-3)">لست مشتركاً في أي جمعية بعد. تواصل مع المدير للاشتراك.</p></div>';
     return;
   }
 
-  content.innerHTML =
+  content.innerHTML = profileHtml +
     '<div class="section-title">جمعياتي</div>' +
     '<div class="grid grid-2" id="assoc-list"></div>';
 
   const list = content.querySelector('#assoc-list');
   mine.forEach(a => {
     const prog = computeDurationProgress(a.startDate, a.endDate, a.duration);
+    const wishedTotal = myWishes.filter(w => w.assocId === a.id).reduce((s, w) => s + Number(w.sharesCount), 0);
+    const wishedPercent = a.sub.sharesCount > 0 ? Math.min(100, Math.round((wishedTotal / a.sub.sharesCount) * 100)) : 0;
+
     const el = document.createElement('div');
     el.className = 'assoc-card status-' + a.status;
     el.innerHTML =
-      '<div class="flex-between"><div class="assoc-name">' + a.name + '</div>' +
+      '<div class="flex-between"><div class="assoc-name">🏠 ' + a.name + '</div>' +
       '<span class="badge badge-' + (a.status === 'نشطة' ? 'success' : a.status === 'منتهية' ? 'gray' : 'gold') + '">' + STATUS_LABEL[a.status] + '</span></div>' +
       '<div class="assoc-meta">' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">أسهمي</div><div class="assoc-meta-val">' + formatNumber(a.sub.sharesCount) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">أسهمي في الجمعية</div><div class="assoc-meta-val">' + formatNumber(a.sub.sharesCount) + ' سهم</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">مدة الجمعية</div><div class="assoc-meta-val">' + a.duration + ' شهر</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي استحقاقي</div><div class="assoc-meta-val">' + formatCurrency(a.sub.sharesCount * a.shareValue * a.duration) + '</div></div>' +
       '</div>' +
-      '<div class="capacity-bar-wrap">' + renderProgressBarHtml(prog.percent) +
-        '<div class="capacity-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' شهر (' + prog.percent + '٪)</span>' +
-        '<span>متبقٍ ' + formatNumber(prog.remainingMonths) + ' شهر / ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>';
+      '<div class="progress-wrap">' + renderProgressBarHtml(prog.percent) +
+        '<div class="progress-label"><span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span></div></div>' +
+      '<div class="progress-wrap">' + renderProgressBarHtml(wishedPercent, 'success') +
+        '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(wishedTotal) + ' / ' + formatNumber(a.sub.sharesCount) + ' سهم</span></div></div>';
     el.addEventListener('click', () => showAssociationDetail(content, session, a));
     list.appendChild(el);
   });
@@ -88,23 +113,28 @@ async function showAssociationDetail(content, session, assoc) {
   const mySharesTotal = assoc.sub.sharesCount;
   const myWishedTotal = wishes.reduce((s, w) => s + Number(w.sharesCount), 0);
   const mySharesLeft = Math.max(0, mySharesTotal - myWishedTotal);
+  const wishedPercent = mySharesTotal > 0 ? Math.min(100, Math.round((myWishedTotal / mySharesTotal) * 100)) : 0;
   const prog = computeDurationProgress(assoc.startDate, assoc.endDate, assoc.duration);
+  const currentMonthNum = Math.min(assoc.duration, prog.elapsedMonths + 1);
+  const monthDateByNum = new Map(months.map(m => [Number(m.monthNum), m.date]));
 
   content.innerHTML =
     '<button class="btn btn-outline btn-sm" id="back-to-list">→ رجوع للجمعيات</button>' +
     '<div class="card mt-16">' +
       '<div class="flex-between">' +
-        '<div class="assoc-name">' + assoc.name + '</div>' +
+        '<div class="assoc-name">🏠 ' + assoc.name + '</div>' +
         '<span class="badge badge-' + (assoc.status === 'نشطة' ? 'success' : assoc.status === 'منتهية' ? 'gray' : 'gold') + '">' + STATUS_LABEL[assoc.status] + '</span>' +
       '</div>' +
-      '<div class="grid grid-3 mt-16">' +
-        '<div class="stat-card"><div class="n">' + formatNumber(mySharesTotal) + '</div><div class="l">إجمالي أسهمي</div></div>' +
-        '<div class="stat-card"><div class="n">' + formatNumber(mySharesLeft) + '</div><div class="l">أسهم لم تُوزَّع بعد على شهر</div></div>' +
-        '<div class="stat-card"><div class="n">' + formatCurrency(mySharesTotal * assoc.shareValue * assoc.duration) + '</div><div class="l">إجمالي استحقاقي</div></div>' +
+      '<div class="assoc-meta mt-16">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">أسهمي في الجمعية</div><div class="assoc-meta-val">' + formatNumber(mySharesTotal) + ' سهم</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(assoc.shareValue) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">الشهر الحالي</div><div class="assoc-meta-val">' + formatNumber(currentMonthNum) + ' / ' + formatNumber(assoc.duration) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي استحقاقي</div><div class="assoc-meta-val">' + formatCurrency(mySharesTotal * assoc.shareValue * assoc.duration) + '</div></div>' +
       '</div>' +
-      '<div class="capacity-bar-wrap mt-16">' + renderProgressBarHtml(prog.percent) +
-        '<div class="capacity-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' من ' + formatNumber(prog.durationMonths) + ' شهر (' + prog.percent + '٪)</span>' +
-        '<span>متبقٍ ' + formatNumber(prog.remainingMonths) + ' شهر / ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>' +
+      '<div class="progress-wrap mt-16">' + renderProgressBarHtml(prog.percent) +
+        '<div class="progress-label"><span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span></div></div>' +
+      '<div class="progress-wrap">' + renderProgressBarHtml(wishedPercent, 'success') +
+        '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(myWishedTotal) + ' / ' + formatNumber(mySharesTotal) + ' سهم</span></div></div>' +
     '</div>' +
 
     '<div class="section-title mt-16">وزّع أسهمك على شهر الاستلام</div>' +
@@ -115,8 +145,8 @@ async function showAssociationDetail(content, session, assoc) {
     '<div class="table-wrap"><table><thead><tr><th>الشهر</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody id="coll-body"></tbody></table></div>' +
 
     (deliveryRows.length ? (
-      '<div class="section-title mt-16">جدول استلامي</div>' +
-      '<div class="table-wrap"><table><thead><tr><th>الشهر</th><th>التاريخ</th><th>الأسهم</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody id="del-body"></tbody></table></div>'
+      '<div class="section-title mt-16">أشهر استلامي المحدَّدة</div>' +
+      '<div class="mpc-delivery-list" id="del-list"></div>'
     ) : '');
 
   content.querySelector('#back-to-list').addEventListener('click', () => renderMemberAssociationsView(content, session));
@@ -139,15 +169,34 @@ async function showAssociationDetail(content, session, assoc) {
     });
   }
 
-  const delBody = content.querySelector('#del-body');
-  if (delBody) {
+  // قائمة أشهر الاستلام: دائرة رقم ملوّنة حسب الإلحاح (منجَز أخضر / هذا الشهر أو متأخر أحمر / قريب
+  // خلال 30 يوماً ذهبي / بعيد محايد) + شارة عدّ تنازلي بالأيام — بيانات حقيقية من تأكيد التسليم الفعلي
+  const delList = content.querySelector('#del-list');
+  if (delList) {
     deliveryRows.sort((a, b) => a.monthNum - b.monthNum).forEach(r => {
-      delBody.innerHTML +=
-        '<tr><td>' + formatNumber(r.monthNum) + '</td><td>' + (r.confirmDate ? new Date(r.confirmDate).toLocaleDateString('en-GB') : '—') + '</td>' +
-        '<td>' + formatNumber(r.sharesCount) + '</td><td>' + formatCurrency(r.deliveryValue) + '</td>' +
-        '<td>' + (r.delivered
-          ? '<span class="badge badge-success"><span class="confirm-check">✓</span> تم — ' + (r.confirmDate ? new Date(r.confirmDate).toLocaleDateString('en-GB') : '') + '</span>'
-          : '<span class="badge badge-warning">بانتظار الاستلام</span>') + '</td></tr>';
+      let state = '';
+      let countdownClass = '';
+      let countdownText;
+      if (r.delivered) {
+        state = 'state-done'; countdownClass = 'done';
+        countdownText = '✓ تم' + (r.confirmDate ? ' — ' + new Date(r.confirmDate).toLocaleDateString('en-GB') : '');
+      } else {
+        const d = daysUntil(monthDateByNum.get(Number(r.monthNum)));
+        if (d === null || d <= 0) { state = 'state-current'; countdownClass = 'urgent'; countdownText = 'هذا الشهر'; }
+        else if (d <= 30) { state = 'state-soon'; countdownClass = 'soon'; countdownText = 'بعد ' + formatNumber(d) + ' يوم'; }
+        else { countdownText = 'بعد ' + formatNumber(d) + ' يوم'; }
+      }
+
+      const row = document.createElement('div');
+      row.className = 'mpc-delivery-row ' + state;
+      row.innerHTML =
+        '<div class="mpc-delivery-month">' + formatNumber(r.monthNum) + '</div>' +
+        '<div class="mpc-delivery-info">' +
+          '<div class="mpc-delivery-shares">' + formatNumber(r.sharesCount) + ' سهم</div>' +
+          '<div class="mpc-delivery-value">' + formatCurrency(r.deliveryValue) + '</div>' +
+        '</div>' +
+        '<div class="mpc-delivery-countdown ' + countdownClass + '">' + countdownText + '</div>';
+      delList.appendChild(row);
     });
   }
 }

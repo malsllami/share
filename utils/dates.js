@@ -95,3 +95,10 @@ export function renderProgressBarHtml(percent, colorClass) {
   const p = Math.min(100, Math.max(0, Math.round(Number(percent) || 0)));
   return '<div class="progress-bar"><div class="progress-bar-fill' + (colorClass ? ' ' + colorClass : '') + '" style="width:' + p + '%"></div></div>';
 }
+
+// عدد الأيام من الآن إلى تاريخ مُعطى (سالب إن كان التاريخ ماضياً) — للعدّ التنازلي لشهر الاستلام
+export function daysUntil(dateInput) {
+  const d = new Date(dateInput);
+  if (isNaN(d)) return null;
+  return Math.ceil((d - new Date()) / 86400000);
+}
