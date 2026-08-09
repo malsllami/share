@@ -55,9 +55,9 @@ export async function renderMemberAssociationsView(content, session) {
       '</div>' +
       '<div class="mpc-body">' +
         '<div class="mpc-stats">' +
-          '<div class="mpc-stat"><div class="mpc-stat-val">' + formatCurrency(totalEntitlement) + '</div><div class="mpc-stat-label">إجمالي استحقاقي</div></div>' +
-          '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(totalShares) + '</div><div class="mpc-stat-label">إجمالي أسهمي</div></div>' +
           '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(mine.length) + '</div><div class="mpc-stat-label">جمعياتي</div></div>' +
+          '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(totalShares) + '</div><div class="mpc-stat-label">إجمالي أسهمي</div></div>' +
+          '<div class="mpc-stat"><div class="mpc-stat-val">' + formatCurrency(totalEntitlement) + '</div><div class="mpc-stat-label">إجمالي استحقاقي</div></div>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -76,6 +76,8 @@ export async function renderMemberAssociationsView(content, session) {
     const prog = computeDurationProgress(a.startDate, a.endDate, a.duration);
     const wishedTotal = myWishes.filter(w => w.assocId === a.id).reduce((s, w) => s + Number(w.sharesCount), 0);
     const wishedPercent = a.sub.sharesCount > 0 ? Math.min(100, Math.round((wishedTotal / a.sub.sharesCount) * 100)) : 0;
+    const daysToStart = daysUntil(a.startDate);
+    const notStartedYet = daysToStart !== null && daysToStart > 0;
 
     const el = document.createElement('div');
     el.className = 'assoc-card status-' + a.status;
@@ -87,7 +89,9 @@ export async function renderMemberAssociationsView(content, session) {
         '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
       '</div>' +
       '<div class="progress-wrap">' + renderProgressBarHtml(prog.percent) +
-        '<div class="progress-label"><span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span></div></div>' +
+        '<div class="progress-label">' + (notStartedYet
+          ? '<span>لم تبدأ بعد</span><span>تبدأ خلال ' + formatNumber(daysToStart) + ' يوم</span>'
+          : '<span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span>') + '</div></div>' +
       '<div class="progress-wrap">' + renderProgressBarHtml(wishedPercent, 'success') +
         '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(wishedTotal) + ' / ' + formatNumber(a.sub.sharesCount) + ' سهم</span></div></div>';
     el.addEventListener('click', () => showAssociationDetail(content, session, a));
@@ -115,6 +119,8 @@ async function showAssociationDetail(content, session, assoc) {
   const mySharesLeft = Math.max(0, mySharesTotal - myWishedTotal);
   const wishedPercent = mySharesTotal > 0 ? Math.min(100, Math.round((myWishedTotal / mySharesTotal) * 100)) : 0;
   const prog = computeDurationProgress(assoc.startDate, assoc.endDate, assoc.duration);
+  const daysToStart = daysUntil(assoc.startDate);
+  const notStartedYet = daysToStart !== null && daysToStart > 0;
   const currentMonthNum = Math.min(assoc.duration, prog.elapsedMonths + 1);
   const monthDateByNum = new Map(months.map(m => [Number(m.monthNum), m.date]));
 
@@ -128,11 +134,13 @@ async function showAssociationDetail(content, session, assoc) {
       '<div class="assoc-meta mt-16">' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">أسهمي في الجمعية</div><div class="assoc-meta-val">' + formatNumber(mySharesTotal) + ' سهم</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(assoc.shareValue) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">الشهر الحالي</div><div class="assoc-meta-val">' + formatNumber(currentMonthNum) + ' / ' + formatNumber(assoc.duration) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">الشهر الحالي</div><div class="assoc-meta-val">' + (notStartedYet ? '—' : formatNumber(currentMonthNum) + ' / ' + formatNumber(assoc.duration)) + '</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي استحقاقي</div><div class="assoc-meta-val">' + formatCurrency(mySharesTotal * assoc.shareValue * assoc.duration) + '</div></div>' +
       '</div>' +
       '<div class="progress-wrap mt-16">' + renderProgressBarHtml(prog.percent) +
-        '<div class="progress-label"><span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span></div></div>' +
+        '<div class="progress-label">' + (notStartedYet
+          ? '<span>لم تبدأ بعد</span><span>تبدأ خلال ' + formatNumber(daysToStart) + ' يوم</span>'
+          : '<span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span>') + '</div></div>' +
       '<div class="progress-wrap">' + renderProgressBarHtml(wishedPercent, 'success') +
         '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(myWishedTotal) + ' / ' + formatNumber(mySharesTotal) + ' سهم</span></div></div>' +
     '</div>' +

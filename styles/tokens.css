@@ -16,6 +16,9 @@
   --indigo:      #3b5bdb;
   --indigo-l:    #748ffc;
   --indigo-soft: rgba(59,91,219,0.10);
+  /* لون نصّي للأرقام/القيم الملوّنة فوق أسطح داكنة — أفتح في الوضع الداكن لضمان تباين كافٍ (وإلا
+     يصبح النيلي الثابت شبه مندمج مع خلفية داكنة نيلية أيضاً فيصعب قراءته) */
+  --indigo-text: #3b5bdb;
 
   --success:      #12b886;
   --success-soft: rgba(18,184,134,0.12);
@@ -69,6 +72,7 @@
     --sh:    0 4px 24px rgba(0,0,0,0.35);
     --sh-md: 0 8px 40px rgba(0,0,0,0.50);
     --sh-lg: 0 16px 60px rgba(0,0,0,0.65);
+    --indigo-text: #748ffc;
   }
 }
 :root[data-theme="dark"] {
@@ -85,6 +89,7 @@
   --sh:    0 4px 24px rgba(0,0,0,0.35);
   --sh-md: 0 8px 40px rgba(0,0,0,0.50);
   --sh-lg: 0 16px 60px rgba(0,0,0,0.65);
+  --indigo-text: #748ffc;
 }
 :root[data-theme="light"] {
   --header-bg: #1e3a5f;
@@ -100,4 +105,5 @@
   --sh:    0 4px 24px rgba(8,17,30,0.10);
   --sh-md: 0 8px 32px rgba(8,17,30,0.14);
   --sh-lg: 0 16px 56px rgba(8,17,30,0.18);
+  --indigo-text: #3b5bdb;
 }

@@ -80,7 +80,7 @@
 .assoc-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .assoc-meta-item { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; }
 .assoc-meta-label { font-size: 9.5px; color: var(--text-3); font-weight: 700; }
-.assoc-meta-val { font-size: 14px; font-weight: 800; color: var(--indigo); margin-top: 2px; }
+.assoc-meta-val { font-size: 14px; font-weight: 800; color: var(--indigo-text); margin-top: 2px; }
 
 /* ── منتقي أشهر الرغبات: شريط ملخص ثابت أعلى بطاقات ملوّنة حسب مدى الإتاحة ── */
 .wish-summary-bar { display: flex; gap: 12px; flex-wrap: wrap; background: linear-gradient(135deg, var(--ink-1), var(--navy)); color: #fff; border-radius: var(--radius); padding: 12px 16px; margin-bottom: 14px; box-shadow: var(--sh); }
@@ -100,7 +100,7 @@
 .wish-month-card.state-red { border-color: var(--danger); opacity: .65; pointer-events: none; }
 .wish-month-card.selected.state-red { opacity: 1; pointer-events: auto; } /* شهره المُختار حالياً يبقى قابلاً للتعديل دائماً */
 
-.wish-month-num { font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 900; color: var(--indigo); display: flex; align-items: center; justify-content: center; gap: 6px; }
+.wish-month-num { font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 900; color: var(--indigo-text); display: flex; align-items: center; justify-content: center; gap: 6px; }
 .wish-month-badge-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .state-green .wish-month-badge-dot { background: var(--success); }
 .state-orange .wish-month-badge-dot { background: var(--warning); }
@@ -163,7 +163,7 @@
 .mpc-body { padding: 0 18px 20px; margin-top: -40px; position: relative; }
 .mpc-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
 .mpc-stat { background: var(--surface); border-radius: var(--radius-sm); padding: 13px; text-align: center; box-shadow: var(--sh); border: 1px solid var(--border); }
-.mpc-stat-val { font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 800; color: var(--indigo); }
+.mpc-stat-val { font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 800; color: var(--indigo-text); }
 .mpc-stat-label { font-size: 10px; color: var(--text-3); margin-top: 3px; }
 
 /* ═══════════════════ صف شهر استلام (دائرة رقم ملوّنة + معلومات + شارة عدّ تنازلي) ═══════════════════ */
