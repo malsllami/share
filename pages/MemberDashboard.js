@@ -143,6 +143,10 @@ async function showAssociationDetail(content, session, assoc) {
           : '<span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span>') + '</div></div>' +
       '<div class="progress-wrap">' + renderProgressBarHtml(wishedPercent, 'success') +
         '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(myWishedTotal) + ' / ' + formatNumber(mySharesTotal) + ' سهم</span></div></div>' +
+      (deliveryRows.length ? (
+        '<div class="card-title mt-16">🗓 أشهر استلامي المحدَّدة</div>' +
+        '<div class="mpc-delivery-list" id="del-list"></div>'
+      ) : '') +
     '</div>' +
 
     '<div class="section-title mt-16">وزّع أسهمك على شهر الاستلام</div>' +
@@ -150,12 +154,7 @@ async function showAssociationDetail(content, session, assoc) {
     '<div id="wish-picker"></div>' +
 
     '<div class="section-title mt-16">حالة التحصيل الشهري</div>' +
-    '<div class="table-wrap"><table><thead><tr><th>الشهر</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody id="coll-body"></tbody></table></div>' +
-
-    (deliveryRows.length ? (
-      '<div class="section-title mt-16">أشهر استلامي المحدَّدة</div>' +
-      '<div class="mpc-delivery-list" id="del-list"></div>'
-    ) : '');
+    '<div class="table-wrap"><table><thead><tr><th>الشهر</th><th>التاريخ</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody id="coll-body"></tbody></table></div>';
 
   content.querySelector('#back-to-list').addEventListener('click', () => renderMemberAssociationsView(content, session));
 
