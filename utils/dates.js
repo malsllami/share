@@ -50,3 +50,48 @@ export function renderDualDateHtml(dateInput) {
   if (!gregorian) return '';
   return '<span class="dual-date"><span class="g">' + gregorian + '</span> · <span class="h">' + hijri + '</span></span>';
 }
+
+// نسبة انقضاء مدة الجمعية زمنياً (بالأيام والأشهر) بين تاريخ البداية والنهاية — للعرض فقط، لا تُخزَّن
+// ولا علاقة لها بحالة الجمعية الفعلية (جديدة/نشطة/منتهية) المبنية على التحصيل والتسليم الحقيقيين
+export function computeDurationProgress(startDate, endDate, durationMonths) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const dur = Number(durationMonths) || 0;
+  if (isNaN(start) || isNaN(end)) {
+    return { percent: 0, elapsedDays: 0, remainingDays: 0, totalDays: 0, elapsedMonths: 0, remainingMonths: dur, durationMonths: dur };
+  }
+
+  const totalDays = Math.max(1, Math.round((end - start) / 86400000));
+  const elapsedDays = Math.min(totalDays, Math.max(0, Math.round((new Date() - start) / 86400000)));
+  const remainingDays = Math.max(0, totalDays - elapsedDays);
+  const percent = Math.min(100, Math.max(0, Math.round((elapsedDays / totalDays) * 100)));
+
+  const now = new Date();
+  let elapsedMonths = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (now.getDate() < start.getDate()) elapsedMonths -= 1;
+  elapsedMonths = Math.min(dur, Math.max(0, elapsedMonths));
+  const remainingMonths = Math.max(0, dur - elapsedMonths);
+
+  return { percent, elapsedDays, remainingDays, totalDays, elapsedMonths, remainingMonths, durationMonths: dur };
+}
+
+// حالة/نسبة تقدّم شهر واحد بعينه بالتقويم — ماضٍ (100٪) / جارٍ حالياً (نسبة أيامه المنقضية) / قادم (0٪)
+// يُستخدَم فقط لعرض موقع الشهر زمنياً في بطاقته، ولا علاقة له بحالة إغلاقه الفعلية (تحصيل/تسليم)
+export function computeMonthProgress(monthDate) {
+  const start = new Date(monthDate);
+  if (isNaN(start)) return { percent: 0, state: 'future' };
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + 1);
+  const now = new Date();
+  if (now < start) return { percent: 0, state: 'future' };
+  if (now >= end) return { percent: 100, state: 'past' };
+  const totalDays = Math.max(1, Math.round((end - start) / 86400000));
+  const elapsedDays = Math.max(0, Math.round((now - start) / 86400000));
+  return { percent: Math.min(100, Math.round((elapsedDays / totalDays) * 100)), state: 'current' };
+}
+
+// شريط تقدّم HTML عام قابل لإعادة الاستخدام في أي بطاقة — colorClass: success|warning|danger|'' (افتراضي تدرّج ذهبي)
+export function renderProgressBarHtml(percent, colorClass) {
+  const p = Math.min(100, Math.max(0, Math.round(Number(percent) || 0)));
+  return '<div class="progress-bar"><div class="progress-bar-fill' + (colorClass ? ' ' + colorClass : '') + '" style="width:' + p + '%"></div></div>';
+}

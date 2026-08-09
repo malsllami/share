@@ -4,7 +4,7 @@ import { renderAppHeader, wireHeaderEvents } from '../components/Header.js';
 import { openModal, closeModal } from '../components/Modal.js';
 import { showToast } from '../components/Toast.js';
 import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits } from '../utils/numbers.js';
-import { renderDualDateHtml, formatDualDate } from '../utils/dates.js';
+import { renderDualDateHtml, formatDualDate, computeDurationProgress, computeMonthProgress, renderProgressBarHtml } from '../utils/dates.js';
 import { buildFullPhone, extractLocalPart, formatPhoneDisplay, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading } from '../components/Button.js';
@@ -61,38 +61,79 @@ async function showOverviewTab(content) {
   const activeAssociations = associations.filter(a => a.status !== 'منتهية');
   const activeMembers = members.filter(m => m.status === 'نشط');
 
+  // بيانات حقيقية من الجداول مباشرة لكل جمعية جارية — لا تقدير ولا أرقام وهمية
+  const [monthsPerAssoc, summaries] = await Promise.all([
+    Promise.all(activeAssociations.map(a => callApi('getMonths', { assocId: a.id }))),
+    Promise.all(activeAssociations.map(a => callApi('getAssociationFinancialSummary', { assocId: a.id }))),
+  ]);
+
+  let totalDeliveryExpected = 0, totalDeliveryDone = 0;
+  let totalSubscriptionValue = 0, totalSubscribedMembers = 0;
+  summaries.forEach(s => { totalDeliveryExpected += s.deliveryExpected; totalDeliveryDone += s.deliveryDone; });
+  activeAssociations.forEach(a => {
+    totalSubscriptionValue += (Number(a.totalShares) || 0) * a.shareValue * a.duration;
+    totalSubscribedMembers += Number(a.memberCount) || 0;
+  });
+  const totalDeliveryRemaining = Math.max(0, totalDeliveryExpected - totalDeliveryDone);
+  const deliveryPercent = totalDeliveryExpected > 0 ? Math.round((totalDeliveryDone / totalDeliveryExpected) * 100) : 0;
+
   content.innerHTML =
     '<div class="grid grid-3 mt-16" style="margin-bottom:20px">' +
       '<div class="stat-card"><div class="n">' + formatNumber(associations.length) + '</div><div class="l">إجمالي الجمعيات (' + formatNumber(activeAssociations.length) + ' جارية)</div></div>' +
       '<div class="stat-card"><div class="n">' + formatNumber(members.length) + '</div><div class="l">إجمالي الأعضاء (' + formatNumber(activeMembers.length) + ' نشط)</div></div>' +
       '<div class="stat-card"><div class="n">' + formatNumber(reqCount.count) + '</div><div class="l">عدد طلبات السكربت</div></div>' +
     '</div>' +
+
+    '<div class="section-title">عداد التسليم الكلي — كل الجمعيات الجارية</div>' +
+    '<div class="card" style="margin-bottom:20px">' +
+      '<div class="grid grid-3">' +
+        '<div class="stat-card"><div class="n">' + formatCurrency(totalDeliveryExpected) + '</div><div class="l">الإجمالي المستحق تسليمه</div></div>' +
+        '<div class="stat-card"><div class="n" style="color:var(--success)">' + formatCurrency(totalDeliveryDone) + '</div><div class="l">تم تسليمه</div></div>' +
+        '<div class="stat-card"><div class="n" style="color:var(--warning)">' + formatCurrency(totalDeliveryRemaining) + '</div><div class="l">المتبقي للتسليم</div></div>' +
+      '</div>' +
+      '<div class="capacity-bar-wrap mt-16">' + renderProgressBarHtml(deliveryPercent, 'success') +
+        '<div class="capacity-label"><span>نسبة الإنجاز</span><span>' + deliveryPercent + '٪</span></div></div>' +
+    '</div>' +
+
+    '<div class="grid grid-3 mt-16" style="margin-bottom:20px">' +
+      '<div class="stat-card"><div class="n">' + formatCurrency(totalSubscriptionValue) + '</div><div class="l">إجمالي قيمة اشتراكات الجمعيات الجارية</div></div>' +
+      '<div class="stat-card"><div class="n">' + formatNumber(totalSubscribedMembers) + '</div><div class="l">إجمالي الاشتراكات في كل الجمعيات الجارية</div></div>' +
+      '<div class="stat-card"><div class="n">' + formatNumber(activeAssociations.length) + '</div><div class="l">عدد الجمعيات النشطة/الجارية</div></div>' +
+    '</div>' +
+
     '<div class="section-title">الجمعيات الجارية</div>' +
     '<div class="grid grid-2" id="overview-assoc-list"></div>';
 
   const list = content.querySelector('#overview-assoc-list');
   if (activeAssociations.length === 0) { list.innerHTML = '<p class="table-empty">لا توجد جمعية جارية حالياً</p>'; return; }
 
-  const monthsPerAssoc = await Promise.all(activeAssociations.map(a => callApi('getMonths', { assocId: a.id })));
-
   activeAssociations.forEach((a, idx) => {
     const months = monthsPerAssoc[idx];
+    const s = summaries[idx];
     const closedCount = months.filter(m => m.closed).length;
-    const today = new Date();
-    const end = new Date(a.endDate);
-    const remainingDays = Math.max(0, Math.ceil((end - today) / (1000 * 60 * 60 * 24)));
+    const prog = computeDurationProgress(a.startDate, a.endDate, a.duration);
     const dual = formatDualDate(a.endDate);
+    const totalValue = (Number(a.totalShares) || 0) * a.shareValue * a.duration;
 
     const el = document.createElement('div');
     el.className = 'assoc-card status-' + a.status;
     el.innerHTML =
       '<div class="flex-between"><div class="assoc-name">' + a.name + '</div><span class="badge badge-' + (a.status === 'نشطة' ? 'success' : 'gold') + '">' + a.status + '</span></div>' +
       '<div class="assoc-meta">' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">التقدّم</div><div class="assoc-meta-val">' + formatNumber(closedCount) + ' / ' + formatNumber(a.duration) + '</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">المشتركون</div><div class="assoc-meta-val">' + formatNumber(a.memberCount) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي قيمة الاشتراكات</div><div class="assoc-meta-val">' + formatCurrency(totalValue) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">الأشهر المغلقة</div><div class="assoc-meta-val">' + formatNumber(closedCount) + ' / ' + formatNumber(a.duration) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">تنتهي</div><div class="assoc-meta-val" style="font-size:11px">' + dual.gregorian + '</div></div>' +
       '</div>' +
-      '<div class="capacity-bar-wrap"><div class="capacity-bar"><div class="capacity-bar-fill" style="width:' + Math.round((closedCount / a.duration) * 100) + '%"></div></div>' +
-        '<div class="capacity-label"><span>تنتهي: ' + dual.combined + '</span><span>' + formatNumber(remainingDays) + ' يوم متبقٍ</span></div></div>';
+      '<div class="capacity-bar-wrap">' + renderProgressBarHtml(prog.percent) +
+        '<div class="capacity-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' من ' + formatNumber(a.duration) + ' شهر (' + prog.percent + '٪)</span>' +
+        '<span>متبقٍ ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>' +
+      '<div class="grid grid-2 mt-16" style="gap:8px">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(s.collectionDone) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(s.collectionRemaining) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(s.deliveryDone) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(s.deliveryRemaining) + '</div></div>' +
+      '</div>';
     list.appendChild(el);
   });
 }
@@ -248,6 +289,7 @@ async function showAssociationsTab(content, session) {
   const list = content.querySelector('#assoc-admin-list');
   if (associations.length === 0) list.innerHTML = '<p class="table-empty">لا توجد جمعيات بعد</p>';
   associations.forEach(a => {
+    const prog = computeDurationProgress(a.startDate, a.endDate, a.duration);
     const el = document.createElement('div');
     el.className = 'assoc-card status-' + a.status;
     el.innerHTML =
@@ -257,7 +299,12 @@ async function showAssociationsTab(content, session) {
         '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">المدة</div><div class="assoc-meta-val">' + a.duration + ' شهر</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">التحصيل الشهري</div><div class="assoc-meta-val">' + formatCurrency(a.monthlyTotal) + '</div></div>' +
-      '</div>';
+      '</div>' +
+      (a.status !== 'منتهية' ? (
+        '<div class="capacity-bar-wrap">' + renderProgressBarHtml(prog.percent) +
+          '<div class="capacity-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' شهر (' + prog.percent + '٪)</span>' +
+          '<span>متبقٍ ' + formatNumber(prog.remainingMonths) + ' شهر / ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>'
+      ) : '');
     el.addEventListener('click', () => showAssociationAdminDetail(content, session, a));
     list.appendChild(el);
   });
@@ -299,9 +346,27 @@ async function showAssociationsTab(content, session) {
 }
 
 async function showAssociationAdminDetail(content, session, assoc) {
+  content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
+  const summary = await callApi('getAssociationFinancialSummary', { assocId: assoc.id });
+  const prog = computeDurationProgress(assoc.startDate, assoc.endDate, assoc.duration);
+
   content.innerHTML =
     '<button class="btn btn-outline btn-sm" id="back-btn">→ رجوع للجمعيات</button>' +
-    '<div class="card mt-16"><div class="assoc-name">' + assoc.name + '</div></div>' +
+    '<div class="card mt-16">' +
+      '<div class="flex-between"><div class="assoc-name">' + assoc.name + '</div>' +
+      '<span class="badge badge-' + (assoc.status === 'نشطة' ? 'success' : assoc.status === 'منتهية' ? 'gray' : 'gold') + '">' + assoc.status + '</span></div>' +
+      (assoc.status !== 'منتهية' ? (
+        '<div class="capacity-bar-wrap mt-16">' + renderProgressBarHtml(prog.percent) +
+          '<div class="capacity-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' من ' + formatNumber(assoc.duration) + ' شهر (' + prog.percent + '٪)</span>' +
+          '<span>متبقٍ ' + formatNumber(prog.remainingMonths) + ' شهر / ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>'
+      ) : '') +
+      '<div class="grid grid-2 mt-16" style="gap:8px">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التحصيل — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(summary.collectionDone) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التحصيل — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(summary.collectionRemaining) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التسليم — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(summary.deliveryDone) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التسليم — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(summary.deliveryRemaining) + '</div></div>' +
+      '</div>' +
+    '</div>' +
     '<div class="tabs mt-16" id="assoc-sub-tabs">' +
       '<button class="tab-btn active" data-t="subs">الاشتراكات</button>' +
       '<button class="tab-btn" data-t="months">الأشهر</button>' +
@@ -420,6 +485,8 @@ async function showMonthsSubTab(subContent, assoc) {
   subContent.innerHTML = '<div class="grid grid-2 mt-16" id="months-list"></div>';
   const list = subContent.querySelector('#months-list');
   months.forEach(m => {
+    const mProg = computeMonthProgress(m.date);
+    const stateLabel = mProg.state === 'past' ? 'شهر ماضٍ' : mProg.state === 'current' ? 'الشهر الجاري' : 'شهر قادم';
     const el = document.createElement('div');
     el.className = 'card';
     el.style.cursor = 'pointer';
@@ -427,6 +494,8 @@ async function showMonthsSubTab(subContent, assoc) {
       '<div class="flex-between"><span style="font-weight:800">الشهر ' + formatNumber(m.monthNum) + '</span>' +
       '<span class="badge badge-' + (m.closed ? 'gray' : 'warning') + '">' + (m.closed ? 'مغلق' : 'مفتوح') + '</span></div>' +
       renderDualDateHtml(m.date) +
+      '<div class="capacity-bar-wrap mt-16">' + renderProgressBarHtml(mProg.percent, mProg.state === 'past' ? 'success' : mProg.state === 'current' ? 'warning' : '') +
+        '<div class="capacity-label"><span>' + stateLabel + '</span><span>' + mProg.percent + '٪</span></div></div>' +
       '<div class="grid grid-3 mt-16">' +
         '<div class="stat-card"><div class="n">' + formatCurrency(m.fixedRiyal) + '</div><div class="l">تحصيل ثابت</div></div>' +
         '<div class="stat-card"><div class="n">' + formatCurrency(m.usedRiyal) + '</div><div class="l">مُخصَّص</div></div>' +
@@ -578,11 +647,20 @@ async function showWishesSubTab(subContent, assoc) {
     ]);
     if (subs.length === 0) { showToast('لا يوجد أعضاء مشتركون في هذه الجمعية بعد', 'error'); return; }
 
+    // عضو "مُجمَّد" = وزّع كامل أسهمه على أشهر الاستلام بالفعل — يبقى قابلاً للاختيار (لتعديل/تقليص
+    // رغبته الحالية ونقل الفرق لشهر آخر) لكن يُميَّز بعلامة 🔒 في القائمة حتى لا يظنّ المدير أن له أسهماً متاحة
+    const wishedTotalByMember = {};
+    wishes.forEach(w => { wishedTotalByMember[w.memberId] = (wishedTotalByMember[w.memberId] || 0) + Number(w.sharesCount); });
+
     openModal({
       title: 'إضافة / تعديل رغبة',
       bodyHtml:
         '<div class="form-group"><label class="form-label">العضو</label><select id="w-member" class="form-control">' +
-          subs.map(s => '<option value="' + s.memberId + '">' + s.memberName + ' (' + formatNumber(s.sharesCount) + ' سهم)</option>').join('') + '</select></div>' +
+          subs.map(s => {
+            const frozen = (wishedTotalByMember[s.memberId] || 0) >= Number(s.sharesCount) - 0.001;
+            return '<option value="' + s.memberId + '">' + s.memberName + ' (' + formatNumber(s.sharesCount) + ' سهم)' + (frozen ? ' 🔒 مكتمل التوزيع' : '') + '</option>';
+          }).join('') + '</select></div>' +
+        '<p class="form-hint" style="margin-top:-10px;margin-bottom:14px">🔒 = وزّع العضو كامل أسهمه على أشهر الاستلام بالفعل؛ اختياره يتيح فقط تعديل/تقليص رغبته الحالية ونقل الفرق لشهر آخر</p>' +
         '<div id="w-picker-wrap"><div id="w-picker"></div></div>' +
         '<div id="w-shares-step" class="hidden">' +
           '<button class="btn btn-outline btn-sm" id="w-back-btn" type="button">→ رجوع لاختيار الشهر</button>' +
@@ -685,7 +763,7 @@ async function showArchiveDetailModal(assoc, archiveContent) {
       '</tbody></table></div>' +
       '<div class="form-error hidden" id="archive-restore-err"></div>' +
       '<button class="btn btn-outline" id="archive-restore-btn" type="button">استعادة هذه الجمعية من الأرشيف</button>' +
-      '<p style="font-size:12px;color:var(--text-muted);margin-top:8px">' +
+      '<p style="font-size:12px;color:var(--text-3);margin-top:8px">' +
         'تُستخدم فقط لتصحيح أرشفة وقعت خطأً — تُعيد الجمعية وكل بياناتها للجداول النشطة، وتُعيد اشتقاق حالة كل شهر من سجلات التحصيل والتسليم الحقيقية تلقائياً.' +
       '</p>',
     onMount: (modal) => {

@@ -4,6 +4,7 @@ import { renderAppHeader, wireHeaderEvents } from '../components/Header.js';
 import { openModal, closeModal } from '../components/Modal.js';
 import { showToast } from '../components/Toast.js';
 import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits } from '../utils/numbers.js';
+import { computeDurationProgress, renderProgressBarHtml } from '../utils/dates.js';
 import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading } from '../components/Button.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
@@ -49,6 +50,7 @@ export async function renderMemberAssociationsView(content, session) {
 
   const list = content.querySelector('#assoc-list');
   mine.forEach(a => {
+    const prog = computeDurationProgress(a.startDate, a.endDate, a.duration);
     const el = document.createElement('div');
     el.className = 'assoc-card status-' + a.status;
     el.innerHTML =
@@ -59,7 +61,10 @@ export async function renderMemberAssociationsView(content, session) {
         '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">مدة الجمعية</div><div class="assoc-meta-val">' + a.duration + ' شهر</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي استحقاقي</div><div class="assoc-meta-val">' + formatCurrency(a.sub.sharesCount * a.shareValue * a.duration) + '</div></div>' +
-      '</div>';
+      '</div>' +
+      '<div class="capacity-bar-wrap">' + renderProgressBarHtml(prog.percent) +
+        '<div class="capacity-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' شهر (' + prog.percent + '٪)</span>' +
+        '<span>متبقٍ ' + formatNumber(prog.remainingMonths) + ' شهر / ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>';
     el.addEventListener('click', () => showAssociationDetail(content, session, a));
     list.appendChild(el);
   });
@@ -83,6 +88,7 @@ async function showAssociationDetail(content, session, assoc) {
   const mySharesTotal = assoc.sub.sharesCount;
   const myWishedTotal = wishes.reduce((s, w) => s + Number(w.sharesCount), 0);
   const mySharesLeft = Math.max(0, mySharesTotal - myWishedTotal);
+  const prog = computeDurationProgress(assoc.startDate, assoc.endDate, assoc.duration);
 
   content.innerHTML =
     '<button class="btn btn-outline btn-sm" id="back-to-list">→ رجوع للجمعيات</button>' +
@@ -96,6 +102,9 @@ async function showAssociationDetail(content, session, assoc) {
         '<div class="stat-card"><div class="n">' + formatNumber(mySharesLeft) + '</div><div class="l">أسهم لم تُوزَّع بعد على شهر</div></div>' +
         '<div class="stat-card"><div class="n">' + formatCurrency(mySharesTotal * assoc.shareValue * assoc.duration) + '</div><div class="l">إجمالي استحقاقي</div></div>' +
       '</div>' +
+      '<div class="capacity-bar-wrap mt-16">' + renderProgressBarHtml(prog.percent) +
+        '<div class="capacity-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' من ' + formatNumber(prog.durationMonths) + ' شهر (' + prog.percent + '٪)</span>' +
+        '<span>متبقٍ ' + formatNumber(prog.remainingMonths) + ' شهر / ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>' +
     '</div>' +
 
     '<div class="section-title mt-16">وزّع أسهمك على شهر الاستلام</div>' +
@@ -136,7 +145,9 @@ async function showAssociationDetail(content, session, assoc) {
       delBody.innerHTML +=
         '<tr><td>' + formatNumber(r.monthNum) + '</td><td>' + (r.confirmDate ? new Date(r.confirmDate).toLocaleDateString('en-GB') : '—') + '</td>' +
         '<td>' + formatNumber(r.sharesCount) + '</td><td>' + formatCurrency(r.deliveryValue) + '</td>' +
-        '<td><span class="badge badge-' + (r.delivered ? 'success' : 'warning') + '">' + (r.delivered ? 'تم الاستلام' : 'بانتظار الاستلام') + '</span></td></tr>';
+        '<td>' + (r.delivered
+          ? '<span class="badge badge-success"><span class="confirm-check">✓</span> تم — ' + (r.confirmDate ? new Date(r.confirmDate).toLocaleDateString('en-GB') : '') + '</span>'
+          : '<span class="badge badge-warning">بانتظار الاستلام</span>') + '</td></tr>';
     });
   }
 }
