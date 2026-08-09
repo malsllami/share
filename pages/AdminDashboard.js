@@ -130,8 +130,8 @@ async function showOverviewTab(content) {
         '<span>متبقٍ ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>' +
       '<div class="grid grid-2 mt-16" style="gap:8px">' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(s.collectionDone) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(s.collectionRemaining) + '</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(s.deliveryDone) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(s.collectionRemaining) + '</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(s.deliveryRemaining) + '</div></div>' +
       '</div>';
     list.appendChild(el);
@@ -362,14 +362,14 @@ async function showAssociationAdminDetail(content, session, assoc) {
       ) : '') +
       '<div class="grid grid-2 mt-16" style="gap:8px">' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التحصيل — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(summary.collectionDone) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التحصيل — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(summary.collectionRemaining) + '</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التسليم — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(summary.deliveryDone) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التحصيل — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(summary.collectionRemaining) + '</div></div>' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التسليم — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(summary.deliveryRemaining) + '</div></div>' +
       '</div>' +
     '</div>' +
     '<div class="tabs mt-16" id="assoc-sub-tabs">' +
-      '<button class="tab-btn active" data-t="subs">الاشتراكات</button>' +
       '<button class="tab-btn" data-t="months">الأشهر</button>' +
+      '<button class="tab-btn" data-t="subs">الاشتراكات</button>' +
       '<button class="tab-btn" data-t="wishes">الرغبات</button>' +
     '</div>' +
     '<div id="assoc-sub-content"></div>';
@@ -385,7 +385,8 @@ async function showAssociationAdminDetail(content, session, assoc) {
     else if (t === 'wishes') showWishesSubTab(subContent, assoc);
   }
   subTabs.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => activate(b.dataset.t)));
-  activate('subs');
+  // الدخول لتفصيل الجمعية يفتح مباشرة على "الأشهر" — هي الأكثر استخداماً يومياً (تأكيد تحصيل/تسليم)
+  activate('months');
 }
 
 async function showSubscriptionsSubTab(subContent, assoc, content, session) {
@@ -480,13 +481,19 @@ function openSubModal(subContent, assoc, memberId, memberName, currentShares) {
 
 async function showMonthsSubTab(subContent, assoc) {
   subContent.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  const months = await callApi('getMonthsWithTotals', { assocId: assoc.id });
+  const [months, confirmSummary] = await Promise.all([
+    callApi('getMonthsWithTotals', { assocId: assoc.id }),
+    callApi('getMonthsConfirmationSummary', { assocId: assoc.id }),
+  ]);
 
   subContent.innerHTML = '<div class="grid grid-2 mt-16" id="months-list"></div>';
   const list = subContent.querySelector('#months-list');
   months.forEach(m => {
     const mProg = computeMonthProgress(m.date);
     const stateLabel = mProg.state === 'past' ? 'شهر ماضٍ' : mProg.state === 'current' ? 'الشهر الجاري' : 'شهر قادم';
+    const cs = confirmSummary[m.monthNum] || { collectionDone: 0, collectionPending: 0, deliveryDone: 0, deliveryPending: 0 };
+    const hasDelivery = cs.deliveryDone > 0 || cs.deliveryPending > 0;
+
     const el = document.createElement('div');
     el.className = 'card';
     el.style.cursor = 'pointer';
@@ -496,10 +503,20 @@ async function showMonthsSubTab(subContent, assoc) {
       renderDualDateHtml(m.date) +
       '<div class="capacity-bar-wrap mt-16">' + renderProgressBarHtml(mProg.percent, mProg.state === 'past' ? 'success' : mProg.state === 'current' ? 'warning' : '') +
         '<div class="capacity-label"><span>' + stateLabel + '</span><span>' + mProg.percent + '٪</span></div></div>' +
-      '<div class="grid grid-3 mt-16">' +
+      '<div class="card-title mt-16" style="font-size:12px;color:var(--text-3);margin-bottom:8px">سعة الشهر (نظرية — حسب الرغبات)</div>' +
+      '<div class="grid grid-3">' +
         '<div class="stat-card"><div class="n">' + formatCurrency(m.fixedRiyal) + '</div><div class="l">تحصيل ثابت</div></div>' +
         '<div class="stat-card"><div class="n">' + formatCurrency(m.usedRiyal) + '</div><div class="l">مُخصَّص</div></div>' +
         '<div class="stat-card"><div class="n">' + formatCurrency(m.remainRiyal) + '</div><div class="l">متبقٍ</div></div>' +
+      '</div>' +
+      '<div class="card-title mt-16" style="font-size:12px;color:var(--text-3);margin-bottom:8px">التأكيد الفعلي (حسب تشيك بوكس التحصيل/التسليم)</div>' +
+      '<div class="grid grid-2" style="gap:8px">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(cs.collectionDone) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(cs.collectionPending) + '</div></div>' +
+        (hasDelivery ? (
+          '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(cs.deliveryDone) + '</div></div>' +
+          '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(cs.deliveryPending) + '</div></div>'
+        ) : '') +
       '</div>';
     el.addEventListener('click', () => showMonthDetailModal(subContent, assoc, m));
     list.appendChild(el);
