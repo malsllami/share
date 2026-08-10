@@ -386,6 +386,11 @@ async function showAssociationAdminDetail(content, session, assoc) {
   const summary = await callApi('getAssociationFinancialSummary', { assocId: assoc.id });
   const prog = computeDurationProgress(assoc.startDate, assoc.endDate, assoc.duration);
 
+  // نسبة إنجاز واحدة مدمجة (تحصيل + تسليم معاً) بدل عرض 4 أرقام متفرقة — أوضح للمدير بنظرة واحدة
+  const combinedExpected = summary.collectionExpected + summary.deliveryExpected;
+  const combinedDone = summary.collectionDone + summary.deliveryDone;
+  const completionPercent = combinedExpected > 0 ? Math.round((combinedDone / combinedExpected) * 100) : 0;
+
   content.innerHTML =
     '<button class="btn btn-outline btn-sm" id="back-btn">→ رجوع للجمعيات</button>' +
     '<div class="card mt-16">' +
@@ -396,12 +401,26 @@ async function showAssociationAdminDetail(content, session, assoc) {
           '<div class="capacity-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' من ' + formatNumber(assoc.duration) + ' شهر (' + prog.percent + '٪)</span>' +
           '<span>متبقٍ ' + formatNumber(prog.remainingMonths) + ' شهر / ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>'
       ) : '') +
-      '<div class="grid grid-2 mt-16" style="gap:8px">' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التحصيل — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(summary.collectionDone) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التسليم — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(summary.deliveryDone) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التحصيل — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(summary.collectionRemaining) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي التسليم — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(summary.deliveryRemaining) + '</div></div>' +
+      // بطاقتان مجمَّعتان حسب الحالة (منجَز/متبقٍ) بدل 4 أرقام متفرقة — كل بطاقة تقارن التحصيل
+      // بالتسليم مباشرة، ثم شريط واحد يلخّص نسبة الإنجاز الكلية المدمجة
+      '<div class="fin-summary">' +
+        '<div class="fin-summary-card success">' +
+          '<div class="fin-summary-title"><span class="fin-dot"></span>تم التحصيل والتسليم</div>' +
+          '<div class="fin-summary-cols">' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">التحصيل</div><div class="fin-summary-val">' + formatCurrency(summary.collectionDone) + '</div></div>' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">التسليم</div><div class="fin-summary-val">' + formatCurrency(summary.deliveryDone) + '</div></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="fin-summary-card warning">' +
+          '<div class="fin-summary-title"><span class="fin-dot"></span>المتبقي</div>' +
+          '<div class="fin-summary-cols">' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">التحصيل</div><div class="fin-summary-val">' + formatCurrency(summary.collectionRemaining) + '</div></div>' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">التسليم</div><div class="fin-summary-val">' + formatCurrency(summary.deliveryRemaining) + '</div></div>' +
+          '</div>' +
+        '</div>' +
       '</div>' +
+      '<div class="progress-wrap primary mt-16">' + renderProgressBarHtml(completionPercent, 'success') +
+        '<div class="progress-label"><span>نسبة الإنجاز</span><span>' + completionPercent + '٪</span></div></div>' +
     '</div>' +
     '<div class="tabs mt-16" id="assoc-sub-tabs">' +
       '<button class="tab-btn" data-t="months">الأشهر</button>' +
@@ -522,7 +541,24 @@ async function showMonthsSubTab(subContent, assoc) {
     callApi('getMonthsConfirmationSummary', { assocId: assoc.id }),
   ]);
 
-  subContent.innerHTML = '<div class="grid grid-2 mt-16" id="months-list"></div>';
+  // شريط تنقّل سريع بأرقام الأشهر — أفقي قابل للتمرير، الشهر الجاري مميَّز بالأزرق، والضغط على أي
+  // رقم ينتقل مباشرة لبطاقة ذلك الشهر (Scroll) بدل التمرير اليدوي بحثاً عنه بين كل البطاقات
+  subContent.innerHTML =
+    '<div class="month-quick-nav mt-16" id="month-quick-nav">' +
+      months.map(m => {
+        const isCurrent = computeMonthProgress(m.date).state === 'current';
+        return '<button class="month-quick-nav-btn' + (isCurrent ? ' active' : '') + '" data-month="' + m.monthNum + '">' + formatNumber(m.monthNum) + '</button>';
+      }).join('') +
+    '</div>' +
+    '<div class="grid grid-2 mt-16" id="months-list"></div>';
+
+  subContent.querySelector('#month-quick-nav').querySelectorAll('.month-quick-nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = subContent.querySelector('#month-card-' + btn.dataset.month);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
   const list = subContent.querySelector('#months-list');
   months.forEach(m => {
     const mProg = computeMonthProgress(m.date);
@@ -532,6 +568,7 @@ async function showMonthsSubTab(subContent, assoc) {
 
     const el = document.createElement('div');
     el.className = 'card';
+    el.id = 'month-card-' + m.monthNum;
     el.style.cursor = 'pointer';
     el.innerHTML =
       '<div class="flex-between"><span style="font-weight:800">الشهر ' + formatNumber(m.monthNum) + '</span>' +

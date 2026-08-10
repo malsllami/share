@@ -190,6 +190,31 @@
 }
 .more-sheet-item:active { transform: scale(.98); }
 
+/* ═══════════════════ ملخص مالي مجمَّع حسب الحالة (منجَز/متبقٍ) — يقارن التحصيل بالتسليم مباشرة ═══════════════════ */
+.fin-summary { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.fin-summary-card { border-radius: var(--radius-sm); padding: 12px 14px; border: 1px solid transparent; }
+.fin-summary-card.success { background: var(--success-soft); }
+.fin-summary-card.warning { background: var(--warning-soft); }
+.fin-summary-title { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 800; margin-bottom: 10px; }
+.fin-summary-card.success .fin-summary-title { color: var(--success); }
+.fin-summary-card.warning .fin-summary-title { color: var(--warning); }
+.fin-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
+.fin-summary-cols { display: flex; justify-content: space-around; gap: 8px; }
+.fin-summary-col { text-align: center; flex: 1; }
+.fin-summary-label { font-size: 10px; color: var(--text-3); font-weight: 600; }
+.fin-summary-val { font-family: 'Sora', sans-serif; font-size: 14.5px; font-weight: 800; color: var(--text); margin-top: 2px; }
+
+/* ═══════════════════ شريط تنقّل سريع بأرقام الأشهر — أفقي قابل للتمرير، الشهر الجاري مميَّز ═══════════════════ */
+.month-quick-nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; }
+.month-quick-nav-btn {
+  flex-shrink: 0; min-width: 38px; height: 38px; border-radius: var(--pill); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-2); font-family: 'Sora', sans-serif; font-weight: 800;
+  font-size: 13px; cursor: pointer; transition: all .2s var(--ease);
+}
+.month-quick-nav-btn:hover { border-color: var(--indigo); }
+.month-quick-nav-btn:active { transform: scale(.92); }
+.month-quick-nav-btn.active { background: var(--indigo); border-color: var(--indigo); color: #fff; }
+
 /* ═══════════════════ بطاقة إحصائيات مكدَّسة (صفوف رقم+تسمية) — بديل مضغوط لعدة بطاقات منفصلة ═══════════════════ */
 .card.stat-list { padding: 6px 20px; } /* أنحف من ارتفاع البطاقة الافتراضي (22px) — يناسب كمية البيانات الصغيرة */
 .stat-list-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); }
