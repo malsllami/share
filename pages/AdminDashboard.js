@@ -11,6 +11,7 @@ import { withButtonLoading, withCardLoading } from '../components/Button.js';
 import { fillTemplate, buildWhatsAppLink } from '../utils/template.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
 import { renderMemberAssociationsView } from './MemberDashboard.js';
+import { renderBottomNavHtml, wireBottomNav, updateBottomNavActive } from '../components/BottomNav.js';
 
 // المدير عضو في نفس النظام بنفس الوقت (رقم جواله مسجَّل كعضو أيضاً) — تبويب "جمعياتي" يتيح له
 // الاشتراك واختيار رغباته الخاصة تماماً كأي عضو آخر، بجانب صلاحياته الإدارية في بقية التبويبات.
@@ -28,7 +29,8 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
     '<div class="container" style="padding-top:22px">' +
       '<div class="tabs" id="admin-tabs"></div>' +
       '<div id="admin-content"></div>' +
-    '</div>';
+    '</div>' +
+    renderBottomNavHtml(); // يظهر فقط على الجوال (عبر CSS) — طابع تطبيق جوال حقيقي بشريط تنقّل ثابت
   wireHeaderEvents(root, onLogout);
 
   const tabsEl = root.querySelector('#admin-tabs');
@@ -36,7 +38,8 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 
   function activate(tabId) {
     tabsEl.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
-    if (tabId === 'overview') showOverviewTab(content);
+    updateBottomNavActive(root, tabId);
+    if (tabId === 'overview') showOverviewTab(content, activate, session);
     else if (tabId === 'my-associations') renderMemberAssociationsView(content, session);
     else if (tabId === 'settings') showSettingsTab(content);
     else if (tabId === 'members') showMembersTab(content);
@@ -46,11 +49,12 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 
   tabsEl.innerHTML = TABS.map(t => '<button class="tab-btn" data-tab="' + t.id + '">' + t.label + '</button>').join('');
   tabsEl.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => activate(b.dataset.tab)));
+  wireBottomNav(root, activate);
   activate('overview');
 }
 
 /* ══════════════════ نظرة عامة ══════════════════ */
-async function showOverviewTab(content) {
+async function showOverviewTab(content, activate, session) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   const [associations, members, reqCount] = await Promise.all([
     callApi('getAssociations'),
@@ -78,32 +82,56 @@ async function showOverviewTab(content) {
   const deliveryPercent = totalDeliveryExpected > 0 ? Math.round((totalDeliveryDone / totalDeliveryExpected) * 100) : 0;
 
   content.innerHTML =
-    // إحصائيات عامة — 3 أعمدة ثابتة دائماً (حتى على الجوال) بدل التكديس عمود واحد أسفل بعضه
-    '<div class="mpc-stats mt-16" style="margin-bottom:18px">' +
-      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(associations.length) + '</div><div class="mpc-stat-label">إجمالي الجمعيات (' + formatNumber(activeAssociations.length) + ' جارية)</div></div>' +
-      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(members.length) + '</div><div class="mpc-stat-label">إجمالي الأعضاء (' + formatNumber(activeMembers.length) + ' نشط)</div></div>' +
-      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(reqCount.count) + '</div><div class="mpc-stat-label">طلبات السكربت</div></div>' +
+    // ١) بطاقة إحصائيات سريعة — صف واحد مكدَّس (رقم + تسمية) بدل 3 بطاقات منفصلة
+    '<div class="card stat-list mt-16" style="margin-bottom:18px">' +
+      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(activeAssociations.length) + '</span><span class="stat-list-label">الجمعيات الجارية</span></div>' +
+      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(activeMembers.length) + '</span><span class="stat-list-label">الأعضاء النشطون</span></div>' +
+      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(reqCount.count) + '</span><span class="stat-list-label">طلبات السكربت</span></div>' +
     '</div>' +
 
+    // ٢) إجراءات سريعة — اختصارات لأكثر عمليتين يومية (إنشاء جمعية/إضافة عضو) + تنقّل مباشر
+    '<div class="section-title">إجراءات سريعة</div>' +
+    '<div class="quick-actions" style="margin-bottom:18px">' +
+      '<button class="quick-action-btn" id="qa-create-assoc"><span class="qa-icon">➕</span>إنشاء جمعية</button>' +
+      '<button class="quick-action-btn" id="qa-add-member"><span class="qa-icon">👤</span>إضافة عضو</button>' +
+      '<button class="quick-action-btn" id="qa-goto-assoc"><span class="qa-icon">🏠</span>الجمعيات</button>' +
+      '<button class="quick-action-btn" id="qa-goto-members"><span class="qa-icon">👥</span>الأعضاء</button>' +
+    '</div>' +
+
+    // ٣) عداد التسليم الكلي — بطاقة موحَّدة (رقم إجمالي + تقسيم بعمودين + شريط تقدّم)، بدل 3 بطاقات
+    // فرعية متراصّة كانت تتجاوز حدود البطاقة الأساسية بصرياً على الجوال
     '<div class="section-title">عداد التسليم الكلي — كل الجمعيات الجارية</div>' +
-    '<div class="card" style="margin-bottom:18px">' +
-      '<div class="mpc-stats">' +
-        '<div class="mpc-stat"><div class="mpc-stat-val">' + formatCurrency(totalDeliveryExpected) + '</div><div class="mpc-stat-label">الإجمالي المستحق</div></div>' +
-        '<div class="mpc-stat"><div class="mpc-stat-val" style="color:var(--success)">' + formatCurrency(totalDeliveryDone) + '</div><div class="mpc-stat-label">تم تسليمه</div></div>' +
-        '<div class="mpc-stat"><div class="mpc-stat-val" style="color:var(--warning)">' + formatCurrency(totalDeliveryRemaining) + '</div><div class="mpc-stat-label">المتبقي</div></div>' +
+    '<div class="card delivery-counter" style="margin-bottom:18px">' +
+      '<div class="dc-total"><div class="dc-total-val">' + formatCurrency(totalDeliveryExpected) + '</div><div class="dc-total-label">الإجمالي المستحق تسليمه</div></div>' +
+      '<div class="dc-split">' +
+        '<div class="dc-split-item"><div class="dc-split-val" style="color:var(--success)">' + formatCurrency(totalDeliveryDone) + '</div><div class="dc-split-label">تم تسليمه</div></div>' +
+        '<div class="dc-split-divider"></div>' +
+        '<div class="dc-split-item"><div class="dc-split-val" style="color:var(--warning)">' + formatCurrency(totalDeliveryRemaining) + '</div><div class="dc-split-label">المتبقي</div></div>' +
       '</div>' +
       '<div class="progress-wrap primary mt-16">' + renderProgressBarHtml(deliveryPercent, 'success') +
         '<div class="progress-label"><span>نسبة الإنجاز</span><span>' + deliveryPercent + '٪</span></div></div>' +
     '</div>' +
 
-    '<div class="mpc-stats mt-16" style="margin-bottom:18px">' +
-      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatCurrency(totalSubscriptionValue) + '</div><div class="mpc-stat-label">إجمالي قيمة الاشتراكات</div></div>' +
-      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(totalSubscribedMembers) + '</div><div class="mpc-stat-label">إجمالي الاشتراكات</div></div>' +
-      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(activeAssociations.length) + '</div><div class="mpc-stat-label">جمعيات نشطة/جارية</div></div>' +
+    // ٤) إجماليات الاشتراكات — بنفس أسلوب بطاقة الإحصائيات المكدَّسة أعلاه
+    '<div class="card stat-list" style="margin-bottom:18px">' +
+      '<div class="stat-list-row"><span class="stat-list-val">' + formatCurrency(totalSubscriptionValue) + '</span><span class="stat-list-label">إجمالي قيمة الاشتراكات الجارية</span></div>' +
+      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(totalSubscribedMembers) + '</span><span class="stat-list-label">إجمالي الاشتراكات الجارية</span></div>' +
     '</div>' +
 
+    // ٥) الجمعيات الجارية — بكل تفاصيلها الحالية كاملة دون حذف أي معلومة
     '<div class="section-title">الجمعيات الجارية</div>' +
     '<div class="grid grid-2" id="overview-assoc-list"></div>';
+
+  content.querySelector('#qa-create-assoc').addEventListener('click', () => {
+    activate('associations');
+    openAddAssociationModal(() => showAssociationsTab(content, session));
+  });
+  content.querySelector('#qa-add-member').addEventListener('click', () => {
+    activate('members');
+    openAddMemberModal(() => showMembersTab(content));
+  });
+  content.querySelector('#qa-goto-assoc').addEventListener('click', () => activate('associations'));
+  content.querySelector('#qa-goto-members').addEventListener('click', () => activate('members'));
 
   const list = content.querySelector('#overview-assoc-list');
   if (activeAssociations.length === 0) { list.innerHTML = '<p class="table-empty">لا توجد جمعية جارية حالياً</p>'; return; }
@@ -244,34 +272,37 @@ async function showMembersTab(content) {
     body.appendChild(tr);
   });
 
-  content.querySelector('#add-member-btn').addEventListener('click', () => {
-    openModal({
-      title: 'إضافة عضو جديد',
-      bodyHtml:
-        '<div class="form-group"><label class="form-label">الاسم</label><input id="m-name" class="form-control" /></div>' +
-        '<div class="form-group"><label class="form-label">رقم الجوال</label>' + renderPhoneInputGroup('m-phone') + '</div>' +
-        '<div class="form-error hidden" id="m-error"></div>' +
-        '<button class="btn btn-gold btn-block" id="m-save">إضافة</button>',
-      onMount: (modal) => {
-        bindPhoneLocalInput(modal.querySelector('#m-phone'));
-        const saveBtn = modal.querySelector('#m-save');
-        saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
-          const errEl = modal.querySelector('#m-error');
-          errEl.classList.add('hidden');
-          const phone = buildFullPhone(modal.querySelector('#m-phone').value);
-          if (!phone) { errEl.textContent = 'رقم الجوال غير صالح — 9 أرقام تبدأ بـ5'; errEl.classList.remove('hidden'); return; }
-          try {
-            await callApi('addMember', { name: modal.querySelector('#m-name').value, phone });
-            closeModal();
-            showToast('تمت إضافة العضو', 'success');
-            showMembersTab(content);
-          } catch (err) {
-            errEl.textContent = err.message;
-            errEl.classList.remove('hidden');
-          }
-        }));
-      },
-    });
+  content.querySelector('#add-member-btn').addEventListener('click', () => openAddMemberModal(() => showMembersTab(content)));
+}
+
+// نافذة "إضافة عضو" مستقلة — تُستدعى من تبويب "الأعضاء" نفسه ومن "إجراءات سريعة" بنظرة عامة معاً
+function openAddMemberModal(onDone) {
+  openModal({
+    title: 'إضافة عضو جديد',
+    bodyHtml:
+      '<div class="form-group"><label class="form-label">الاسم</label><input id="m-name" class="form-control" /></div>' +
+      '<div class="form-group"><label class="form-label">رقم الجوال</label>' + renderPhoneInputGroup('m-phone') + '</div>' +
+      '<div class="form-error hidden" id="m-error"></div>' +
+      '<button class="btn btn-gold btn-block" id="m-save">إضافة</button>',
+    onMount: (modal) => {
+      bindPhoneLocalInput(modal.querySelector('#m-phone'));
+      const saveBtn = modal.querySelector('#m-save');
+      saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
+        const errEl = modal.querySelector('#m-error');
+        errEl.classList.add('hidden');
+        const phone = buildFullPhone(modal.querySelector('#m-phone').value);
+        if (!phone) { errEl.textContent = 'رقم الجوال غير صالح — 9 أرقام تبدأ بـ5'; errEl.classList.remove('hidden'); return; }
+        try {
+          await callApi('addMember', { name: modal.querySelector('#m-name').value, phone });
+          closeModal();
+          showToast('تمت إضافة العضو', 'success');
+          onDone();
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+        }
+      }));
+    },
   });
 }
 
@@ -310,39 +341,42 @@ async function showAssociationsTab(content, session) {
     list.appendChild(el);
   });
 
-  content.querySelector('#add-assoc-btn').addEventListener('click', async () => {
-    const settings = await callApi('getSettings');
-    openModal({
-      title: 'إنشاء جمعية جديدة',
-      bodyHtml:
-        '<div class="form-group"><label class="form-label">تاريخ البداية</label><input id="a-start" type="date" class="form-control" /></div>' +
-        '<div class="form-group"><label class="form-label">مدة الجمعية (أشهر)</label><input id="a-duration" class="form-control" inputmode="numeric" value="' + settings.defaultDuration + '" /></div>' +
-        '<div class="form-group"><label class="form-label">قيمة السهم (ريال)</label><input id="a-share" class="form-control" inputmode="decimal" value="' + settings.defaultShareValue + '" /></div>' +
-        '<div class="form-hint" style="margin-bottom:14px">اسم الجمعية يُولَّد تلقائياً بصيغة "جمعية − N"</div>' +
-        '<div class="form-error hidden" id="a-error"></div>' +
-        '<button class="btn btn-gold btn-block" id="a-save">إنشاء</button>',
-      onMount: (modal) => {
-        [modal.querySelector('#a-duration'), modal.querySelector('#a-share')].forEach(bindDigitNormalization);
-        const saveBtn = modal.querySelector('#a-save');
-        saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
-          const errEl = modal.querySelector('#a-error');
-          errEl.classList.add('hidden');
-          try {
-            const r = await callApi('addAssociation', {
-              startDate: modal.querySelector('#a-start').value,
-              duration: modal.querySelector('#a-duration').value,
-              shareValue: modal.querySelector('#a-share').value,
-            });
-            closeModal();
-            showToast('تم إنشاء ' + r.name, 'success');
-            showAssociationsTab(content, session);
-          } catch (err) {
-            errEl.textContent = err.message;
-            errEl.classList.remove('hidden');
-          }
-        }));
-      },
-    });
+  content.querySelector('#add-assoc-btn').addEventListener('click', () => openAddAssociationModal(() => showAssociationsTab(content, session)));
+}
+
+// نافذة "إنشاء جمعية" مستقلة — تُستدعى من تبويب "إدارة الجمعيات" نفسه ومن "إجراءات سريعة" بنظرة عامة معاً
+async function openAddAssociationModal(onDone) {
+  const settings = await callApi('getSettings');
+  openModal({
+    title: 'إنشاء جمعية جديدة',
+    bodyHtml:
+      '<div class="form-group"><label class="form-label">تاريخ البداية</label><input id="a-start" type="date" class="form-control" /></div>' +
+      '<div class="form-group"><label class="form-label">مدة الجمعية (أشهر)</label><input id="a-duration" class="form-control" inputmode="numeric" value="' + settings.defaultDuration + '" /></div>' +
+      '<div class="form-group"><label class="form-label">قيمة السهم (ريال)</label><input id="a-share" class="form-control" inputmode="decimal" value="' + settings.defaultShareValue + '" /></div>' +
+      '<div class="form-hint" style="margin-bottom:14px">اسم الجمعية يُولَّد تلقائياً بصيغة "جمعية − N"</div>' +
+      '<div class="form-error hidden" id="a-error"></div>' +
+      '<button class="btn btn-gold btn-block" id="a-save">إنشاء</button>',
+    onMount: (modal) => {
+      [modal.querySelector('#a-duration'), modal.querySelector('#a-share')].forEach(bindDigitNormalization);
+      const saveBtn = modal.querySelector('#a-save');
+      saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
+        const errEl = modal.querySelector('#a-error');
+        errEl.classList.add('hidden');
+        try {
+          const r = await callApi('addAssociation', {
+            startDate: modal.querySelector('#a-start').value,
+            duration: modal.querySelector('#a-duration').value,
+            shareValue: modal.querySelector('#a-share').value,
+          });
+          closeModal();
+          showToast('تم إنشاء ' + r.name, 'success');
+          onDone();
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+        }
+      }));
+    },
   });
 }
 

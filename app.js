@@ -18,3 +18,11 @@ function boot() {
 }
 
 boot();
+
+// تسجيل عامل الخدمة (PWA) — يخزّن هيكل التطبيق للتحميل الفوري لاحقاً؛ لا يؤثر على البيانات الحيّة
+// (انظر sw.js) ولا يُوقِف عمل الموقع أبداً حتى لو فشل التسجيل (متصفحات قديمة، أو أول تحميل بلا اتصال)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}

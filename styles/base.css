@@ -1,5 +1,5 @@
 /* الأساس العام — استرجاع، طباعة، تخطيط، واتجاه RTL (بتصميم مطابق لمشروع "جمعية عائلية" المرجعي) */
-* , *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+* , *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
   font-family: "Noto Kufi Arabic", "Sora", sans-serif;
@@ -72,6 +72,16 @@ a { color: inherit; }
 }
 .tab-btn.active { background: var(--indigo); color: #fff; box-shadow: 0 4px 16px rgba(59,91,219,0.35); }
 .tab-btn:hover:not(.active) { background: var(--bg-2); color: var(--text); }
+
+/* شريط التنقّل الرئيسي بلوحة المدير (#admin-tabs) فقط — وليس أي شريط تبويبات فرعي آخر بالصفحة —
+   يبقى ثابتاً مرئياً أثناء التمرير على الشاشات الأوسع من الجوال (ملتصقاً بأسفل الهيدر الثابت أصلاً)،
+   وعلى الجوال يختفي تماماً لأن التنقّل السفلي الثابت (.bottom-nav) يحل محله هناك */
+@media (min-width: 641px) {
+  #admin-tabs { position: sticky; top: 58px; z-index: 99; }
+}
+@media (max-width: 640px) {
+  #admin-tabs { display: none; }
+}
 
 /* ── بطاقات ── */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: var(--sh); transition: box-shadow .22s var(--ease); }
