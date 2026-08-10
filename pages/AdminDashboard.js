@@ -78,27 +78,28 @@ async function showOverviewTab(content) {
   const deliveryPercent = totalDeliveryExpected > 0 ? Math.round((totalDeliveryDone / totalDeliveryExpected) * 100) : 0;
 
   content.innerHTML =
-    '<div class="grid grid-3 mt-16" style="margin-bottom:20px">' +
-      '<div class="stat-card"><div class="n">' + formatNumber(associations.length) + '</div><div class="l">إجمالي الجمعيات (' + formatNumber(activeAssociations.length) + ' جارية)</div></div>' +
-      '<div class="stat-card"><div class="n">' + formatNumber(members.length) + '</div><div class="l">إجمالي الأعضاء (' + formatNumber(activeMembers.length) + ' نشط)</div></div>' +
-      '<div class="stat-card"><div class="n">' + formatNumber(reqCount.count) + '</div><div class="l">عدد طلبات السكربت</div></div>' +
+    // إحصائيات عامة — 3 أعمدة ثابتة دائماً (حتى على الجوال) بدل التكديس عمود واحد أسفل بعضه
+    '<div class="mpc-stats mt-16" style="margin-bottom:18px">' +
+      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(associations.length) + '</div><div class="mpc-stat-label">إجمالي الجمعيات (' + formatNumber(activeAssociations.length) + ' جارية)</div></div>' +
+      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(members.length) + '</div><div class="mpc-stat-label">إجمالي الأعضاء (' + formatNumber(activeMembers.length) + ' نشط)</div></div>' +
+      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(reqCount.count) + '</div><div class="mpc-stat-label">طلبات السكربت</div></div>' +
     '</div>' +
 
     '<div class="section-title">عداد التسليم الكلي — كل الجمعيات الجارية</div>' +
-    '<div class="card" style="margin-bottom:20px">' +
-      '<div class="grid grid-3">' +
-        '<div class="stat-card"><div class="n">' + formatCurrency(totalDeliveryExpected) + '</div><div class="l">الإجمالي المستحق تسليمه</div></div>' +
-        '<div class="stat-card"><div class="n" style="color:var(--success)">' + formatCurrency(totalDeliveryDone) + '</div><div class="l">تم تسليمه</div></div>' +
-        '<div class="stat-card"><div class="n" style="color:var(--warning)">' + formatCurrency(totalDeliveryRemaining) + '</div><div class="l">المتبقي للتسليم</div></div>' +
+    '<div class="card" style="margin-bottom:18px">' +
+      '<div class="mpc-stats">' +
+        '<div class="mpc-stat"><div class="mpc-stat-val">' + formatCurrency(totalDeliveryExpected) + '</div><div class="mpc-stat-label">الإجمالي المستحق</div></div>' +
+        '<div class="mpc-stat"><div class="mpc-stat-val" style="color:var(--success)">' + formatCurrency(totalDeliveryDone) + '</div><div class="mpc-stat-label">تم تسليمه</div></div>' +
+        '<div class="mpc-stat"><div class="mpc-stat-val" style="color:var(--warning)">' + formatCurrency(totalDeliveryRemaining) + '</div><div class="mpc-stat-label">المتبقي</div></div>' +
       '</div>' +
-      '<div class="capacity-bar-wrap mt-16">' + renderProgressBarHtml(deliveryPercent, 'success') +
-        '<div class="capacity-label"><span>نسبة الإنجاز</span><span>' + deliveryPercent + '٪</span></div></div>' +
+      '<div class="progress-wrap primary mt-16">' + renderProgressBarHtml(deliveryPercent, 'success') +
+        '<div class="progress-label"><span>نسبة الإنجاز</span><span>' + deliveryPercent + '٪</span></div></div>' +
     '</div>' +
 
-    '<div class="grid grid-3 mt-16" style="margin-bottom:20px">' +
-      '<div class="stat-card"><div class="n">' + formatCurrency(totalSubscriptionValue) + '</div><div class="l">إجمالي قيمة اشتراكات الجمعيات الجارية</div></div>' +
-      '<div class="stat-card"><div class="n">' + formatNumber(totalSubscribedMembers) + '</div><div class="l">إجمالي الاشتراكات في كل الجمعيات الجارية</div></div>' +
-      '<div class="stat-card"><div class="n">' + formatNumber(activeAssociations.length) + '</div><div class="l">عدد الجمعيات النشطة/الجارية</div></div>' +
+    '<div class="mpc-stats mt-16" style="margin-bottom:18px">' +
+      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatCurrency(totalSubscriptionValue) + '</div><div class="mpc-stat-label">إجمالي قيمة الاشتراكات</div></div>' +
+      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(totalSubscribedMembers) + '</div><div class="mpc-stat-label">إجمالي الاشتراكات</div></div>' +
+      '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(activeAssociations.length) + '</div><div class="mpc-stat-label">جمعيات نشطة/جارية</div></div>' +
     '</div>' +
 
     '<div class="section-title">الجمعيات الجارية</div>' +
