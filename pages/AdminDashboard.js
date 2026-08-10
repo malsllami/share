@@ -524,11 +524,9 @@ async function showMonthsSubTab(subContent, assoc) {
 }
 
 async function showMonthDetailModal(subContent, assoc, month) {
-  const [collection, delivery, settings] = await Promise.all([
-    callApi('getCollectionData', { assocId: assoc.id, monthNum: month.monthNum }),
-    callApi('getDeliveryData', { assocId: assoc.id, monthNum: month.monthNum }),
-    callApi('getSettings'),
-  ]);
+  // طلب واحد بدل ثلاثة (getMonthDetailBundle) — كان فتح بطاقة الشهر أبطأ ملحوظاً من بقية البطاقات
+  // تحديداً بسبب 3 طلبات شبكة منفصلة هنا مقابل طلب واحد للبطاقات الأخرى
+  const { collection, delivery, settings } = await callApi('getMonthDetailBundle', { assocId: assoc.id, monthNum: month.monthNum });
 
   openModal({
     title: 'الشهر ' + month.monthNum + ' — ' + assoc.name,

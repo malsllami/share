@@ -137,6 +137,11 @@
 .nav-card .nav-card-chevron { color: var(--text-3); font-size: 20px; flex-shrink: 0; }
 .nav-card .nav-card-title { font-family: 'Sora', sans-serif; font-size: 14.5px; font-weight: 700; }
 
+/* شرائط لونية جانبية تميّز كل بطاقة تنقّل عن الأخرى بصرياً حسب طبيعتها */
+.nav-card.accent-gold { border-right: 4px solid var(--gold); }
+.nav-card.accent-success { border-right: 4px solid var(--success); }
+.nav-card.accent-indigo { border-right: 4px solid var(--indigo); }
+
 /* ── إشارة عضو مكتمل توزيع أسهمه بالكامل (مُجمَّد) في قائمة اختيار الرغبات ── */
 .member-frozen-tag { color: var(--warning); font-weight: 800; }
 

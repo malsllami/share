@@ -24,9 +24,11 @@ export async function renderMemberDashboard(root, { session, onLogout }) {
 }
 
 // بطاقة تنقّل قابلة للنقر (Hub → Detail) — عنوان + محتوى مختصر اختياري + سهم يشير لوجود المزيد
-function navCardHtml(id, icon, title, bodyHtml) {
+// accentClass: شريط لوني جانبي مميِّز (accent-gold/accent-success/accent-indigo) حتى لا تتشابه
+// البطاقات الثلاث بصرياً رغم اختلاف وظيفتها
+function navCardHtml(id, icon, title, bodyHtml, accentClass) {
   return (
-    '<div class="card nav-card mt-16" id="' + id + '">' +
+    '<div class="card nav-card mt-16' + (accentClass ? ' ' + accentClass : '') + '" id="' + id + '">' +
       '<div class="flex-between">' +
         '<div class="nav-card-title">' + icon + ' ' + title + '</div>' +
         '<span class="nav-card-chevron">‹</span>' +
@@ -146,10 +148,19 @@ async function showAssociationDetail(content, session, assoc) {
   const collectionTotalCount = collectionRows.length;
   const collectionPendingCount = collectionTotalCount - collectedCount;
 
+  // شارة إلحاح لمعاينة بطاقة "أشهر استلامي المحدَّدة" — تُظهر فوراً هل يوجد شهر مستحق الآن أو قريب
+  // (خلال 30 يوماً) دون فتح البطاقة، لجعل المعلومة الأهم واضحة على البطاقة نفسها كما طُلب
+  let deliveryUrgencyBadge = '';
+  if (deliveryRows.length) {
+    const pendingDaysList = deliveryRows.filter(r => !r.delivered).map(r => daysUntil(monthDateByNum.get(Number(r.monthNum))));
+    if (pendingDaysList.some(d => d === null || d <= 0)) deliveryUrgencyBadge = '<span class="badge badge-danger">⏰ يوجد شهر مستحق الآن</span>';
+    else if (pendingDaysList.some(d => d !== null && d <= 30)) deliveryUrgencyBadge = '<span class="badge badge-gold">⏰ خلال 30 يوماً</span>';
+  }
+
   content.innerHTML =
     '<button class="btn btn-outline btn-sm" id="back-to-list">→ رجوع للجمعيات</button>' +
 
-    // البطاقة الأساسية — معلومات ثابتة + مؤشر تقدّم الجمعية الزمني فقط (العنصر الأهم بصرياً هنا)
+    // ١) البطاقة الأساسية — معلومات ثابتة + مؤشر تقدّم الجمعية الزمني فقط (العنصر الأهم بصرياً هنا)
     '<div class="card mt-16">' +
       '<div class="flex-between">' +
         '<div class="assoc-name">🏠 ' + assoc.name + '</div>' +
@@ -167,22 +178,29 @@ async function showAssociationDetail(content, session, assoc) {
           : '<span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span>') + '</div></div>' +
     '</div>' +
 
-    // بطاقة تنقّل: منتقي أشهر الرغبات (شاشة مستقلة عند الفتح)
-    navCardHtml('nav-wishes', '🎯', 'وزّع أسهمك على شهر الاستلام',
-      '<p class="form-hint" style="margin:0">اختر شهراً لتحديد كم سهماً تريد استلام قيمته فيه</p>') +
-
-    // بطاقة تنقّل: أشهر استلامي المحدَّدة — معاينة مختصرة (مؤشر ثانوي فقط) + تفتح القائمة الكاملة
+    // ٢) بطاقة تنقّل: أشهر استلامي المحدَّدة — أقرب بطاقة عملياً (شارة إلحاح + عدد الأشهر واضحان
+    // مباشرة على البطاقة دون الحاجة لفتحها) — شريط أخضر مميِّز
     (deliveryRows.length ? navCardHtml('nav-delivery', '🗓', 'أشهر استلامي المحدَّدة',
+      '<div class="flex-between" style="margin-bottom:8px">' +
+        '<span style="font-size:13px;font-weight:700">📅 ' + formatNumber(deliveryRows.length) + (deliveryRows.length === 1 ? ' شهر محدَّد للاستلام' : ' أشهر محدَّدة للاستلام') + '</span>' +
+        deliveryUrgencyBadge +
+      '</div>' +
       '<div class="progress-wrap secondary" style="margin-top:0">' + renderProgressBarHtml(wishedPercent, 'success') +
-        '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(myWishedTotal) + ' / ' + formatNumber(mySharesTotal) + ' سهم</span></div></div>'
+        '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(myWishedTotal) + ' / ' + formatNumber(mySharesTotal) + ' سهم</span></div></div>',
+      'accent-success'
     ) : '') +
 
-    // بطاقة تنقّل: حالة التحصيل الشهري — ملخص مضغوط (عدد/ألوان) بدل الجدول كاملاً
+    // ٣) بطاقة تنقّل: حالة التحصيل الشهري — ملخص مضغوط (عدد/ألوان) بدل الجدول كاملاً — شريط نيلي مميِّز
     (collectionTotalCount ? navCardHtml('nav-collection', '💰', 'حالة التحصيل الشهري',
       '<div style="font-size:13px;font-weight:700;margin-bottom:8px">' + formatNumber(collectedCount) + ' / ' + formatNumber(collectionTotalCount) + ' أشهر تم تحصيلها</div>' +
       '<span class="badge badge-success">🟢 ' + formatNumber(collectedCount) + ' تم التحصيل</span> ' +
-      '<span class="badge badge-warning">🟡 ' + formatNumber(collectionPendingCount) + ' بانتظار التحصيل</span>'
-    ) : '');
+      '<span class="badge badge-warning">🟡 ' + formatNumber(collectionPendingCount) + ' بانتظار التحصيل</span>',
+      'accent-indigo'
+    ) : '') +
+
+    // ٤) بطاقة تنقّل: منتقي أشهر الرغبات (إجراء اختياري وليس حالة يومية، فآخر بطاقة) — شريط ذهبي مميِّز
+    navCardHtml('nav-wishes', '🎯', 'وزّع أسهمك على شهر الاستلام',
+      '<p class="form-hint" style="margin:0">اختر شهراً لتحديد كم سهماً تريد استلام قيمته فيه</p>', 'accent-gold');
 
   content.querySelector('#back-to-list').addEventListener('click', () => renderMemberAssociationsView(content, session));
 
