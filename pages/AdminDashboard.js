@@ -12,6 +12,7 @@ import { fillTemplate, buildWhatsAppLink } from '../utils/template.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
 import { renderMemberAssociationsView } from './MemberDashboard.js';
 import { renderBottomNavHtml, wireBottomNav, updateBottomNavActive } from '../components/BottomNav.js';
+import { ICONS } from '../utils/icons.js';
 
 // المدير عضو في نفس النظام بنفس الوقت (رقم جواله مسجَّل كعضو أيضاً) — تبويب "جمعياتي" يتيح له
 // الاشتراك واختيار رغباته الخاصة تماماً كأي عضو آخر، بجانب صلاحياته الإدارية في بقية التبويبات.
@@ -92,10 +93,10 @@ async function showOverviewTab(content, activate, session) {
     // ٢) إجراءات سريعة — اختصارات لأكثر عمليتين يومية (إنشاء جمعية/إضافة عضو) + تنقّل مباشر
     '<div class="section-title">إجراءات سريعة</div>' +
     '<div class="quick-actions" style="margin-bottom:18px">' +
-      '<button class="quick-action-btn" id="qa-create-assoc"><span class="qa-icon">➕</span>إنشاء جمعية</button>' +
-      '<button class="quick-action-btn" id="qa-add-member"><span class="qa-icon">👤</span>إضافة عضو</button>' +
-      '<button class="quick-action-btn" id="qa-goto-assoc"><span class="qa-icon">🏠</span>الجمعيات</button>' +
-      '<button class="quick-action-btn" id="qa-goto-members"><span class="qa-icon">👥</span>الأعضاء</button>' +
+      '<button class="quick-action-btn" id="qa-create-assoc"><span class="qa-icon">' + ICONS.plus + '</span>إنشاء جمعية</button>' +
+      '<button class="quick-action-btn" id="qa-add-member"><span class="qa-icon">' + ICONS.member + '</span>إضافة عضو</button>' +
+      '<button class="quick-action-btn" id="qa-goto-assoc"><span class="qa-icon">' + ICONS.building + '</span>الجمعيات</button>' +
+      '<button class="quick-action-btn" id="qa-goto-members"><span class="qa-icon">' + ICONS.people + '</span>الأعضاء</button>' +
     '</div>' +
 
     // ٣) عداد التسليم الكلي — بطاقة موحَّدة (رقم إجمالي + تقسيم بعمودين + شريط تقدّم)، بدل 3 بطاقات

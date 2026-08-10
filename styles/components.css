@@ -167,7 +167,9 @@
 }
 @media (max-width: 640px) {
   .bottom-nav { display: flex; }
-  .container { padding-bottom: 84px; } /* تفادي إخفاء آخر عنصر بالصفحة خلف الشريط الثابت */
+  /* تفادي إخفاء آخر عنصر بالصفحة خلف الشريط الثابت — قيمة سخية مع مراعاة حافة الشاشة السفلية
+     (الأجهزة ذات مؤشر الهوم بلا أزرار) بدل رقم ثابت وحيد قد لا يكفي على كل الأجهزة */
+  .container { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
 }
 .bottom-nav-item {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
@@ -176,7 +178,8 @@
 }
 .bottom-nav-item.active { color: var(--gold); }
 .bottom-nav-item:active { transform: scale(.92); }
-.bn-icon { font-size: 19px; line-height: 1; }
+.bn-icon { display: flex; }
+.bn-icon .icon-svg { width: 19px; height: 19px; }
 .bn-label { font-size: 9.5px; font-weight: 700; }
 
 .more-sheet { display: flex; flex-direction: column; gap: 8px; }
@@ -188,7 +191,8 @@
 .more-sheet-item:active { transform: scale(.98); }
 
 /* ═══════════════════ بطاقة إحصائيات مكدَّسة (صفوف رقم+تسمية) — بديل مضغوط لعدة بطاقات منفصلة ═══════════════════ */
-.stat-list-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.card.stat-list { padding: 6px 20px; } /* أنحف من ارتفاع البطاقة الافتراضي (22px) — يناسب كمية البيانات الصغيرة */
+.stat-list-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--border); }
 .stat-list-row:last-child { border-bottom: none; }
 .stat-list-val { font-family: 'Sora', sans-serif; font-size: 19px; font-weight: 800; color: var(--indigo-text); min-width: 44px; flex-shrink: 0; }
 .stat-list-label { font-size: 12.5px; color: var(--text-2); font-weight: 600; }
@@ -203,7 +207,8 @@
 }
 .quick-action-btn:hover { box-shadow: var(--sh-md); transform: translateY(-2px); border-color: var(--indigo); }
 .quick-action-btn:active { transform: scale(.96); }
-.quick-action-btn .qa-icon { font-size: 22px; }
+.quick-action-btn .qa-icon { display: flex; }
+.quick-action-btn .qa-icon .icon-svg { width: 22px; height: 22px; }
 
 /* ═══════════════════ عداد التسليم الكلي — بطاقة موحَّدة (رقم إجمالي + تقسيم عمودين + شريط تقدّم) ═══════════════════ */
 .dc-total { text-align: center; }
