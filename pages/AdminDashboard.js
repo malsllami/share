@@ -636,6 +636,9 @@ async function showMonthDetailModal(subContent, assoc, month) {
             await callApi('confirmCollection', { id: c.id, collected: e.target.checked });
             waBtn.style.display = e.target.checked ? '' : 'none';
             showToast('تم التحديث', 'success');
+            // تحديث بطاقات "الأشهر" خلف النافذة المنبثقة بلا انتظار — وإلا تبقى القيم (المتبقي،
+            // شارة مغلق/مفتوح) قديمة حتى يُغادر المدير التبويب ويعود إليه يدوياً
+            showMonthsSubTab(subContent, assoc);
           } catch (err) {
             e.target.checked = !e.target.checked; // تراجع بصري عن التبديل عند الفشل
             showToast(err.message, 'error');
@@ -690,6 +693,8 @@ async function showMonthDetailModal(subContent, assoc, month) {
             waBtn.style.display = e.target.checked ? '' : 'none';
             if (e.target.checked) await updateWaLink();
             showToast('تم التحديث', 'success');
+            // نفس تحديث بطاقات "الأشهر" خلف النافذة المنبثقة بلا انتظار (انظر معالج التحصيل أعلاه)
+            showMonthsSubTab(subContent, assoc);
           } catch (err) {
             e.target.checked = !e.target.checked;
             showToast(err.message, 'error');
