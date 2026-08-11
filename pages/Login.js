@@ -185,6 +185,10 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   });
 
   primaryBioBtn.addEventListener('click', withButtonLoading(primaryBioBtn, async () => {
+    // إيقاف حلقة التجديد الدوري فوراً — وإلا قد تستبدل discChallenge/discSessionId بقيم جلسة جديدة
+    // في منتصف محاولة دخول جارية فعلياً (مثلاً إن استغرق المستخدم أكثر من 90 ثانية أمام نافذة النظام)،
+    // فيفشل completeDiscoverableLogin لاحقاً بـ"انتهت صلاحية المحاولة" رغم نجاح البصمة فعلياً
+    stopDiscRefreshLoop();
     if (!discChallenge || !discSessionId) { showToast('يرجى الانتظار لحظة ثم إعادة المحاولة', 'error'); return; }
     primaryBioStatus.classList.remove('hidden');
 
@@ -200,6 +204,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         showPhoneStep();
       } else {
         showToast(err.message || 'تعذّر فتح نافذة البصمة — جرّب الدخول برقم الجوال', 'error');
+        startDiscRefreshLoop(); // المستخدم يبقى بالخطوة الأساسية — إعادة تشغيل التجديد الدوري لا مجرد تحديث لمرة واحدة
       }
       return;
     }
@@ -216,7 +221,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     } catch (err) {
       primaryBioStatus.classList.add('hidden');
       showToast(err.message, 'error');
-      refreshDiscoverableChallenge(); // challenge جديد للمحاولة القادمة (السابق استُهلك أو انتهت صلاحيته)
+      startDiscRefreshLoop(); // challenge جديد للمحاولة القادمة + استئناف التجديد الدوري (السابق استُهلك أو انتهت صلاحيته)
       return;
     }
 
@@ -240,15 +245,21 @@ export function renderLoginPage(root, { onLoginSuccess }) {
           memberName: currentMemberName,
           rpId: RP_ID, rpName: RP_NAME,
         });
-        await callApi('completeDeviceRegistration', {
+        const completeResult = await callApi('completeDeviceRegistration', {
           memberId: currentMemberId,
           deviceName: guessDeviceName(),
           clientDataJSON: reg.clientDataJSON,
           attestationObject: reg.attestationObject,
         });
         showToast('تم ربط بصمة جهازك بنجاح', 'success');
-        // إعادة تشغيل تدفق الدخول الآن بعد نجاح الربط
-        await goToBioStep(currentPhone);
+        // بصمة النظام (userVerification:'required') تحقّقت للتو أثناء التسجيل نفسه — إثبات هوية كافٍ
+        // وحديث بما يكفي لتسجيل الدخول فوراً، بلا حاجة لإجبار المستخدم على بصمة نظام ثانية منفصلة
+        // (goToBioStep سابقاً كانت تُعيد كامل تدفق الدخول من الصفر، فتفرض navigator.credentials.get
+        // إضافية — بصمتان بدل واحدة لعملية يُفترض أنها "دخول واحد")
+        saveSession({ memberId: completeResult.memberId, memberName: completeResult.memberName, isAdmin: completeResult.isAdmin });
+        rememberPhone(currentPhone);
+        stopDiscRefreshLoop();
+        onLoginSuccess();
         return;
       }
 

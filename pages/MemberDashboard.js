@@ -59,6 +59,9 @@ export async function renderMemberAssociationsView(content, session) {
   const mine = associations
     .filter(a => subs.some(s => s.assocId === a.id))
     .map(a => ({ ...a, sub: subs.find(s => s.assocId === a.id) }));
+  // جمعيات "جديدة" (لم تبدأ بعد) لم يشترك فيها العضو بعد — متاحة للاشتراك الذاتي (subscribeSelf
+  // بالخادم يفرض نفس القيد: حالة "جديدة" فقط، تفادياً لكسر عدالة حساب السعة الشهرية التراكمية)
+  const available = associations.filter(a => a.status === 'جديدة' && !subs.some(s => s.assocId === a.id));
 
   // ── بطاقة ملف العضو: صورة رمزية بأول حرف من الاسم + رقمه + 3 إحصائيات إجمالية عبر كل جمعياته ──
   const totalShares = mine.reduce((s, a) => s + Number(a.sub.sharesCount), 0);
@@ -79,14 +82,23 @@ export async function renderMemberAssociationsView(content, session) {
       '</div>' +
     '</div>';
 
+  const availableSectionHtml = available.length
+    ? '<div class="section-title">جمعيات متاحة للاشتراك</div><div class="grid grid-2" id="available-assoc-list"></div>'
+    : '';
+
   if (mine.length === 0) {
-    content.innerHTML = profileHtml + '<div class="card text-center"><p style="color:var(--text-3)">لست مشتركاً في أي جمعية بعد. تواصل مع المدير للاشتراك.</p></div>';
+    content.innerHTML = profileHtml +
+      '<div class="card text-center"><p style="color:var(--text-3)">لست مشتركاً في أي جمعية بعد.' +
+      (available.length ? '' : ' تواصل مع المدير للاشتراك.') + '</p></div>' +
+      availableSectionHtml;
+    renderAvailableAssociations(content, session, available);
     return;
   }
 
   content.innerHTML = profileHtml +
     '<div class="section-title">جمعياتي</div>' +
-    '<div class="grid grid-2" id="assoc-list"></div>';
+    '<div class="grid grid-2" id="assoc-list"></div>' +
+    availableSectionHtml;
 
   const list = content.querySelector('#assoc-list');
   mine.forEach(a => {
@@ -113,6 +125,62 @@ export async function renderMemberAssociationsView(content, session) {
         '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(wishedTotal) + ' / ' + formatNumber(a.sub.sharesCount) + ' سهم</span></div></div>';
     el.addEventListener('click', withCardLoading(el, () => showAssociationDetail(content, session, a)));
     list.appendChild(el);
+  });
+
+  renderAvailableAssociations(content, session, available);
+}
+
+// بطاقات الجمعيات "الجديدة" المتاحة للاشتراك الذاتي — كل بطاقة بها زر يفتح نافذة إدخال عدد الأسهم
+function renderAvailableAssociations(content, session, available) {
+  const container = content.querySelector('#available-assoc-list');
+  if (!container) return;
+  available.forEach(a => {
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.innerHTML =
+      '<div class="assoc-name">' + a.name + '</div>' +
+      '<div class="assoc-meta">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">المدة</div><div class="assoc-meta-val">' + formatNumber(a.duration) + ' شهر</div></div>' +
+      '</div>' +
+      '<button class="btn btn-gold btn-block mt-16 subscribe-self-btn">اشترك الآن</button>';
+    el.querySelector('.subscribe-self-btn').addEventListener('click', () => openSubscribeSelfModal(content, session, a));
+    container.appendChild(el);
+  });
+}
+
+// نافذة الاشتراك الذاتي — نفس نمط نافذة "إضافة اشتراك" بلوحة المدير (AdminDashboard.js) حرفياً
+function openSubscribeSelfModal(content, session, assoc) {
+  openModal({
+    title: 'الاشتراك في ' + assoc.name,
+    bodyHtml:
+      '<div class="form-group"><label class="form-label">عدد الأسهم</label>' +
+      '<input id="self-sub-shares" class="form-control" inputmode="decimal" placeholder="مثال: 2" /></div>' +
+      '<div class="form-error hidden" id="self-sub-error"></div>' +
+      '<button class="btn btn-gold btn-block" id="self-sub-save">اشترك</button>',
+    onMount: (modal) => {
+      bindDigitNormalization(modal.querySelector('#self-sub-shares'));
+      const saveBtn = modal.querySelector('#self-sub-save');
+      saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
+        const errEl = modal.querySelector('#self-sub-error');
+        errEl.classList.add('hidden');
+        const shares = normalizeDigits(modal.querySelector('#self-sub-shares').value);
+        if (!isValidSharesCount(shares)) {
+          errEl.textContent = 'عدد الأسهم يجب أن يكون 0.5 على الأقل وبمضاعفات نصف سهم';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        try {
+          await callApi('subscribeSelf', { assocId: assoc.id, memberId: session.memberId, sharesCount: shares });
+          closeModal();
+          showToast('تم الاشتراك بنجاح', 'success');
+          renderMemberAssociationsView(content, session);
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+        }
+      }));
+    },
   });
 }
 
