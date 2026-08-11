@@ -1,11 +1,17 @@
-// صفحة الدخول — رقم الجوال ثم بصمة حقيقية للجهاز (WebAuthn). أول دخول لعضو مضاف من المدير يربط بصمة جهازه تلقائياً.
+// صفحة الدخول — بصمة الجهاز الحقيقية (WebAuthn) هي المسار الافتراضي: زر واحد على الشاشة الرئيسية
+// يفتح نافذة النظام مباشرة بلا أي إدخال، لأي جهاز سبق أن رُبطت بصمته بعضو. رقم الجوال يبقى مساراً
+// احتياطياً (جهاز جديد لم يُربط بعد، أو أول دخول لعضو أضافه المدير حديثاً).
 import { callApi } from '../services/api.js';
-import { registerDeviceCredential, loginWithDeviceCredential, isWebAuthnSupported } from '../services/webauthn.js';
+import { registerDeviceCredential, loginWithDeviceCredential, loginWithDiscoverableCredential, isWebAuthnSupported } from '../services/webauthn.js';
 import { saveSession, rememberPhone, getRememberedPhone } from '../services/auth.js';
 import { buildFullPhone, extractLocalPart, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { showToast } from '../components/Toast.js';
 import { withButtonLoading } from '../components/Button.js';
 import { RP_ID, RP_NAME } from '../config/config.js';
+
+// دورة تجديد الـchallenge المباشر بالخلفية — أقل من صلاحية الكاش بالخادم (120 ثانية) لضمان
+// عدم انتهاء صلاحيته بين تحميل الشاشة وضغطة المستخدم الفعلية (قد يترك الشاشة مفتوحة دقائق)
+const DISCOVERABLE_CHALLENGE_REFRESH_MS = 90000;
 
 function guessDeviceName() {
   const ua = navigator.userAgent;
@@ -30,7 +36,16 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         '<img class="login-mark" src="assets/logo.png" alt="سهم" />' +
         '<div class="login-title">سهم</div>' +
         '<div class="login-sub">إدارة الجمعيات المالية</div>' +
-        '<div id="login-step-phone">' +
+        '<div id="login-step-primary">' +
+          '<div class="login-sub" style="margin-bottom:18px">اضغط للدخول ببصمة هذا الجهاز مباشرة</div>' +
+          '<button id="login-primary-bio-btn" class="bio-btn" disabled><span class="bio-ring"></span><span>الدخول بالبصمة</span></button>' +
+          '<p class="login-sub hidden" id="login-primary-bio-status" style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px">' +
+            '<span class="spinner" style="width:15px;height:15px;border-width:2px;margin:0"></span><span>جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</span>' +
+          '</p>' +
+          '<button id="login-show-phone-btn" class="login-back" type="button">أو أدخل برقم الجوال</button>' +
+        '</div>' +
+        '<div id="login-step-phone" class="hidden">' +
+          '<button id="login-to-primary-btn" class="login-back" type="button" style="margin-bottom:14px">رجوع للدخول بالبصمة</button>' +
           '<div class="form-group">' +
             '<label class="form-label">رقم الجوال</label>' +
             renderPhoneInputGroup('login-phone', extractLocalPart(getRememberedPhone())) +
@@ -52,6 +67,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   const phoneInput = root.querySelector('#login-phone');
   bindPhoneLocalInput(phoneInput);
 
+  const stepPrimary = root.querySelector('#login-step-primary');
   const stepPhone = root.querySelector('#login-step-phone');
   const stepBio = root.querySelector('#login-step-bio');
   const bioText = root.querySelector('#login-bio-text');
@@ -59,6 +75,8 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   const bioBtnText = root.querySelector('#login-bio-btn-text');
   const bioStatus = root.querySelector('#login-bio-status');
   const phoneError = root.querySelector('#login-phone-error');
+  const primaryBioBtn = root.querySelector('#login-primary-bio-btn');
+  const primaryBioStatus = root.querySelector('#login-primary-bio-status');
 
   let currentPhone = null;
   let currentMode = 'login'; // 'login' | 'register'
@@ -67,9 +85,50 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   let currentChallenge = null;
   let currentCredentialIds = null;
 
+  // ── الدخول المباشر بلا رقم جوال (Discoverable Credential) ──
+  let discChallenge = null;
+  let discSessionId = null;
+  let discRefreshTimer = null;
+
+  // يُجلَب مسبقاً (لا عند الضغط) لنفس سبب goToBioStep أدناه: طلب شبكي داخل معالج الضغط قد يُفقد
+  // "إذن التفاعل الحديث" اللازم لفتح نافذة WebAuthn فيرفضها المتصفح بخطأ NotAllowedError
+  async function refreshDiscoverableChallenge() {
+    try {
+      const result = await callApi('beginDiscoverableLogin', {});
+      discChallenge = result.challenge;
+      discSessionId = result.sessionId;
+      primaryBioBtn.disabled = false;
+    } catch (err) {
+      // فشل شبكي عابر — الزر يبقى كما هو، والمؤقت الدوري يعيد المحاولة تلقائياً بعده
+    }
+  }
+
+  function startDiscRefreshLoop() {
+    refreshDiscoverableChallenge();
+    if (!discRefreshTimer) discRefreshTimer = setInterval(refreshDiscoverableChallenge, DISCOVERABLE_CHALLENGE_REFRESH_MS);
+  }
+
+  function stopDiscRefreshLoop() {
+    if (discRefreshTimer) { clearInterval(discRefreshTimer); discRefreshTimer = null; }
+  }
+
   function showPhoneError(msg) {
     phoneError.textContent = msg;
     phoneError.classList.remove('hidden');
+  }
+
+  function showPrimaryStep() {
+    stepPhone.classList.add('hidden');
+    stepBio.classList.add('hidden');
+    stepPrimary.classList.remove('hidden');
+    startDiscRefreshLoop();
+  }
+
+  function showPhoneStep() {
+    stopDiscRefreshLoop();
+    stepPrimary.classList.add('hidden');
+    stepBio.classList.add('hidden');
+    stepPhone.classList.remove('hidden');
   }
 
   // يجلب الـchallenge مسبقاً هنا (وليس لحظة ضغط زر البصمة) — طلب شبكي داخل معالج الضغط
@@ -109,6 +168,9 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     stepBio.classList.remove('hidden');
   }
 
+  root.querySelector('#login-show-phone-btn').addEventListener('click', showPhoneStep);
+  root.querySelector('#login-to-primary-btn').addEventListener('click', showPrimaryStep);
+
   const continueBtn = root.querySelector('#login-continue-btn');
   continueBtn.addEventListener('click', withButtonLoading(continueBtn, async () => {
     const phone = buildFullPhone(phoneInput.value);
@@ -121,6 +183,49 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     stepBio.classList.add('hidden');
     stepPhone.classList.remove('hidden');
   });
+
+  primaryBioBtn.addEventListener('click', withButtonLoading(primaryBioBtn, async () => {
+    if (!discChallenge || !discSessionId) { showToast('يرجى الانتظار لحظة ثم إعادة المحاولة', 'error'); return; }
+    primaryBioStatus.classList.remove('hidden');
+
+    let assertion;
+    try {
+      assertion = await loginWithDiscoverableCredential({ challenge: discChallenge, rpId: RP_ID });
+    } catch (err) {
+      primaryBioStatus.classList.add('hidden');
+      // NotAllowedError تُغطّي عمداً (حسب مواصفة WebAuthn، لحماية الخصوصية) حالتي "لا بصمة مسجَّلة
+      // لهذا الموقع" و"المستخدم ألغى العملية" معاً — لا طريقة برمجية للتفريق بينهما
+      if (err && err.name === 'NotAllowedError') {
+        showToast('لم يتم العثور على بصمة مسجَّلة لهذا الجهاز على سهم، أو تم إلغاء العملية', 'error', 4500);
+        showPhoneStep();
+      } else {
+        showToast(err.message || 'تعذّر فتح نافذة البصمة — جرّب الدخول برقم الجوال', 'error');
+      }
+      return;
+    }
+
+    let result;
+    try {
+      result = await callApi('completeDiscoverableLogin', {
+        sessionId: discSessionId,
+        credentialId: assertion.credentialId,
+        clientDataJSON: assertion.clientDataJSON,
+        authenticatorData: assertion.authenticatorData,
+        signature: assertion.signature,
+      });
+    } catch (err) {
+      primaryBioStatus.classList.add('hidden');
+      showToast(err.message, 'error');
+      refreshDiscoverableChallenge(); // challenge جديد للمحاولة القادمة (السابق استُهلك أو انتهت صلاحيته)
+      return;
+    }
+
+    stopDiscRefreshLoop();
+    saveSession({ memberId: result.memberId, memberName: result.memberName, isAdmin: result.isAdmin });
+    if (result.cloneWarning) showToast('تنبيه: تم رصد نشاط غير معتاد لهذا الجهاز، راجع المدير إن لم يكن هذا دخولك', 'error', 6000);
+    primaryBioStatus.classList.add('hidden');
+    onLoginSuccess();
+  }));
 
   bioBtn.addEventListener('click', withButtonLoading(bioBtn, async () => {
     // زر البصمة نفسه يتحوّل لشريط تقدّم بلا نص (سلوك موحّد لكل أزرار الموقع)، لكن هذا وحده لا يوضّح
@@ -168,4 +273,6 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       bioStatus.classList.add('hidden');
     }
   }));
+
+  startDiscRefreshLoop();
 }

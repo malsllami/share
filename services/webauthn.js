@@ -23,6 +23,20 @@ export function isWebAuthnSupported() {
   return !!window.PublicKeyCredential;
 }
 
+// ينشئ بيانات اعتماد جديدة، مع تراجع تلقائي إلى residentKey:'preferred' إن رفض المتصفح/النظام
+// 'required' صراحة (حالة نادرة اليوم) — يضمن نجاح تسجيل الجهاز الأول دائماً مهما كان الجهاز
+async function createCredential_(publicKey) {
+  try {
+    return await navigator.credentials.create({ publicKey });
+  } catch (err) {
+    if (publicKey.authenticatorSelection.residentKey === 'required') {
+      publicKey.authenticatorSelection.residentKey = 'preferred';
+      return await navigator.credentials.create({ publicKey });
+    }
+    throw err;
+  }
+}
+
 export async function registerDeviceCredential({ challenge, memberId, memberName, rpId, rpName }) {
   if (!isWebAuthnSupported()) throw new Error('هذا المتصفح أو الجهاز لا يدعم تسجيل الدخول بالبصمة');
   const publicKey = {
@@ -30,11 +44,13 @@ export async function registerDeviceCredential({ challenge, memberId, memberName
     rp: { id: rpId, name: rpName },
     user: { id: stringToBuffer(memberId), name: memberName, displayName: memberName },
     pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+    // residentKey:'required' يضمن مفتاحاً قابلاً للاكتشاف (Discoverable) — ضروري لتفعيل "الدخول
+    // المباشر بلا رقم جوال" لاحقاً عبر loginWithDiscoverableCredential أدناه
+    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'required' },
     attestation: 'none',
     timeout: 60000,
   };
-  const cred = await navigator.credentials.create({ publicKey });
+  const cred = await createCredential_(publicKey);
   if (!cred) throw new Error('تم إلغاء عملية ربط البصمة');
   return {
     clientDataJSON: bufferToBase64Url(cred.response.clientDataJSON),
@@ -48,6 +64,26 @@ export async function loginWithDeviceCredential({ challenge, credentialIds, rpId
     challenge: base64UrlToBuffer(challenge),
     rpId,
     allowCredentials: credentialIds.map(id => ({ type: 'public-key', id: base64UrlToBuffer(id) })),
+    userVerification: 'required',
+    timeout: 60000,
+  };
+  const assertion = await navigator.credentials.get({ publicKey });
+  if (!assertion) throw new Error('تم إلغاء عملية الدخول بالبصمة');
+  return {
+    credentialId: bufferToBase64Url(assertion.rawId),
+    clientDataJSON: bufferToBase64Url(assertion.response.clientDataJSON),
+    authenticatorData: bufferToBase64Url(assertion.response.authenticatorData),
+    signature: bufferToBase64Url(assertion.response.signature),
+  };
+}
+
+// دخول مباشر بلا رقم جوال: بلا allowCredentials إطلاقاً — هذا هو المفتاح الذي يسمح للمتصفح بعرض
+// أي بيانات اعتماد قابلة للاكتشاف محفوظة مسبقاً لهذا rpId والسماح للمستخدم باختيارها مباشرة
+export async function loginWithDiscoverableCredential({ challenge, rpId }) {
+  if (!isWebAuthnSupported()) throw new Error('هذا المتصفح أو الجهاز لا يدعم الدخول بالبصمة');
+  const publicKey = {
+    challenge: base64UrlToBuffer(challenge),
+    rpId,
     userVerification: 'required',
     timeout: 60000,
   };
