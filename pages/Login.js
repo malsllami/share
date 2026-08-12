@@ -51,9 +51,6 @@ const BIOMETRIC_META = {
   windowsHello: { icon: ICONS.windowsHello, primary: 'الدخول عبر Windows Hello', login: 'الدخول عبر Windows Hello', link: 'ربط الجهاز عبر Windows Hello' },
 };
 
-// حلقة "جاري التحقق" — شرطات ثابتة + طبقة توهّج تدور حولها وحدها (انظر .verify-ring في components.css)
-const VERIFY_RING_HTML = '<span class="verify-ring" aria-hidden="true"><span class="verify-ring-dashes"></span><span class="verify-ring-glow"></span></span>';
-
 export function renderLoginPage(root, { onLoginSuccess }) {
   const bioKind = guessBiometricKind();
   const bioMeta = BIOMETRIC_META[bioKind];
@@ -66,10 +63,8 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         '<div class="login-sub">إدارة الجمعيات المالية</div>' +
         '<div id="login-step-primary">' +
           '<div class="login-sub" style="margin-bottom:18px">اضغط للدخول ببصمة هذا الجهاز مباشرة</div>' +
-          '<button id="login-primary-bio-btn" class="bio-btn" disabled><span class="bio-icon">' + bioMeta.icon + '</span><span>' + bioMeta.primary + '</span></button>' +
-          '<p class="login-sub hidden" id="login-primary-bio-status" style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px">' +
-            VERIFY_RING_HTML + '<span>جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</span>' +
-          '</p>' +
+          '<button id="login-primary-bio-btn" class="bio-btn"><span class="bio-icon">' + bioMeta.icon + '</span><span>' + bioMeta.primary + '</span></button>' +
+          '<p class="login-sub hidden" id="login-primary-bio-status" style="margin-top:12px">جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</p>' +
           '<button id="login-show-phone-btn" class="login-back" type="button">أو أدخل برقم الجوال</button>' +
         '</div>' +
         '<div id="login-step-phone" class="hidden">' +
@@ -84,9 +79,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         '<div id="login-step-bio" class="hidden">' +
           '<div class="login-sub" id="login-bio-text" style="margin-bottom:18px"></div>' +
           '<button id="login-bio-btn" class="bio-btn"><span class="bio-icon">' + bioMeta.icon + '</span><span id="login-bio-btn-text">' + bioMeta.login + '</span></button>' +
-          '<p class="login-sub hidden" id="login-bio-status" style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px">' +
-            VERIFY_RING_HTML + '<span>جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</span>' +
-          '</p>' +
+          '<p class="login-sub hidden" id="login-bio-status" style="margin-top:12px">جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</p>' +
           '<button id="login-back-btn" class="login-back" type="button">تغيير رقم الجوال</button>' +
         '</div>' +
       '</div>' +
@@ -120,12 +113,13 @@ export function renderLoginPage(root, { onLoginSuccess }) {
 
   // يُجلَب مسبقاً (لا عند الضغط) لنفس سبب goToBioStep أدناه: طلب شبكي داخل معالج الضغط قد يُفقد
   // "إذن التفاعل الحديث" اللازم لفتح نافذة WebAuthn فيرفضها المتصفح بخطأ NotAllowedError
+  // ملاحظة: الزر نفسه يبقى قابلاً للضغط فوراً عند فتح الصفحة (لا نعطّله بانتظار هذا الطلب) — إن ضُغط
+  // قبل اكتمال الجلب فعلياً، معالج الضغط أدناه يعرض تنبيهاً بسيطاً "يرجى الانتظار لحظة" بدل تعطيل الزر بصرياً
   async function refreshDiscoverableChallenge() {
     try {
       const result = await callApi('beginDiscoverableLogin', {});
       discChallenge = result.challenge;
       discSessionId = result.sessionId;
-      primaryBioBtn.disabled = false;
     } catch (err) {
       // فشل شبكي عابر — الزر يبقى كما هو، والمؤقت الدوري يعيد المحاولة تلقائياً بعده
     }

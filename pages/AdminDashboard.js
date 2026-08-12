@@ -566,7 +566,7 @@ async function showMonthsSubTab(subContent, assoc) {
     const cs = confirmSummary[m.monthNum] || { collectionDone: 0, collectionPending: 0, deliveryDone: 0, deliveryPending: 0 };
     const hasDelivery = cs.deliveryDone > 0 || cs.deliveryPending > 0;
 
-    // بطاقة مدمجة ومختصرة: (1) الثوابت — تحصيل الشهر النظري، ما سيُسلَّم منه فعلياً، والفائض؛
+    // بطاقة مدمجة ومختصرة: (1) بطاقة "ثوابت" واحدة (تحصيل الشهر | تسليم الشهر، ثم الفائض أسفلهما)؛
     // (2) التأكيد الفعلي مجمَّعاً حسب الحالة (تم/متبقٍ) بنفس أسلوب الملخص المالي لتفصيل الجمعية —
     // بديل مباشر عن الكتلة النظرية الطويلة + شريط السعة الزمنية السابقين
     const el = document.createElement('div');
@@ -577,12 +577,14 @@ async function showMonthsSubTab(subContent, assoc) {
       '<div class="flex-between"><span style="font-weight:800">الشهر ' + formatNumber(m.monthNum) + stateBadge + '</span>' +
       '<span class="badge badge-' + (m.closed ? 'gray' : 'warning') + '">' + (m.closed ? 'مغلق' : 'مفتوح') + '</span></div>' +
       renderDualDateHtml(m.date) +
-      '<div class="grid grid-3 mt-16">' +
-        '<div class="stat-card"><div class="n">' + formatCurrency(m.fixedRiyal) + '</div><div class="l">تحصيل هذا الشهر</div></div>' +
-        '<div class="stat-card"><div class="n">' + formatCurrency(m.usedRiyal) + '</div><div class="l">سيتم تسليمه هذا الشهر</div></div>' +
-        '<div class="stat-card"><div class="n">' + formatCurrency(m.remainRiyal) + '</div><div class="l">الفائض لهذا الشهر</div></div>' +
-      '</div>' +
-      '<div class="fin-summary">' +
+      '<div class="fin-summary mt-16">' +
+        '<div class="fin-summary-card gold">' +
+          '<div class="fin-summary-cols">' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">التحصيل لهذا الشهر</div><div class="fin-summary-val">' + formatCurrency(m.fixedRiyal) + '</div></div>' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">التسليم لهذا الشهر</div><div class="fin-summary-val">' + formatCurrency(m.usedRiyal) + '</div></div>' +
+          '</div>' +
+          '<div class="fin-summary-highlight"><div class="fin-summary-label">الفائض لهذا الشهر</div><div class="fin-summary-val">' + formatCurrency(m.remainRiyal) + '</div></div>' +
+        '</div>' +
         '<div class="fin-summary-card success">' +
           '<div class="fin-summary-title"><span class="fin-dot"></span>تم فعلياً (تشيك بوكس)</div>' +
           '<div class="fin-summary-cols">' +

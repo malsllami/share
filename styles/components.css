@@ -50,24 +50,25 @@
 .bio-btn:disabled { opacity: .5; cursor: not-allowed; }
 .bio-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .bio-icon .icon-svg { width: 20px; height: 20px; color: var(--gold); }
-.bio-btn.btn-loading .bio-icon { opacity: 0; } /* الزر يتحوّل لشريط تقدّم متحرك أثناء التحميل (سلوك موحّد لكل أزرار الموقع) */
+.bio-btn.btn-loading .bio-icon { opacity: 0; }
 
-/* حلقة "جاري التحقق من هويتك" — شرطات ثابتة تماماً بلا حركة، وطبقة توهّج شفّافة فوقها وحدها تدور
-   ببطء حول الحلقة (mix-blend-mode: screen يجعلها تُضيء الشرطات تحتها بدل تغطيتها) — الدوران بطيء
-   عمداً حتى تُقرأ كإضاءة متنقّلة بين نقاط ثابتة، لا كحلقة كاملة تدور ككل */
-.verify-ring { position: relative; width: 20px; height: 20px; flex-shrink: 0; display: inline-block; }
-.verify-ring-dashes, .verify-ring-glow {
-  position: absolute; inset: 0; border-radius: 50%;
+/* استثناء مقصود من الشريط المتموّج العام (.btn-loading الموحَّد لبقية أزرار الموقع) — عملية البصمة
+   أطول وتحتاج مؤشراً أوضح، فتُستبدَل هنا بحلقة كبيرة متمركزة (نفس أسلوب شرطات ثابتة + توهّج دوّار
+   بطيء لحلقة .verify-ring، لكن بحجم أكبر يملأ الزر) بدل الشريط الذهبي المتموّج الأفقي */
+.bio-btn.btn-loading::after,
+.bio-btn.btn-loading::before {
+  content: ''; position: absolute; top: 50%; left: 50%; width: 36px; height: 36px;
+  margin: -18px 0 0 -18px; border-radius: 50%; animation: none; background-size: auto;
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
           mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
 }
-.verify-ring-dashes { background: repeating-conic-gradient(rgba(240,180,41,0.32) 0deg 7deg, transparent 7deg 24deg); }
-.verify-ring-glow {
+.bio-btn.btn-loading::after { background: repeating-conic-gradient(rgba(240,180,41,0.35) 0deg 6deg, transparent 6deg 20deg); }
+.bio-btn.btn-loading::before {
   background: conic-gradient(from 0deg, transparent 0deg, var(--gold-l) 16deg, transparent 60deg);
   mix-blend-mode: screen; animation: verifyRingSpin 4.8s linear infinite;
 }
 @keyframes verifyRingSpin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .verify-ring-glow { animation: none; opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { .bio-btn.btn-loading::before { animation: none; opacity: .6; } }
 
 .login-back { display: block; text-align: center; margin-top: 16px; font-size: 12px; color: rgba(255,255,255,0.45); background: none; border: none; cursor: pointer; }
 .login-back:hover { color: rgba(255,255,255,0.7); }
@@ -218,14 +219,21 @@
 .fin-summary-card { border-radius: var(--radius-sm); padding: 12px 14px; border: 1px solid transparent; }
 .fin-summary-card.success { background: var(--success-soft); }
 .fin-summary-card.warning { background: var(--warning-soft); }
+.fin-summary-card.gold { background: var(--gold-soft); }
 .fin-summary-title { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 800; margin-bottom: 10px; }
 .fin-summary-card.success .fin-summary-title { color: var(--success); }
 .fin-summary-card.warning .fin-summary-title { color: var(--warning); }
+.fin-summary-card.gold .fin-summary-title { color: var(--gold); }
 .fin-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
 .fin-summary-cols { display: flex; justify-content: space-around; gap: 8px; }
 .fin-summary-col { text-align: center; flex: 1; }
 .fin-summary-label { font-size: 10px; color: var(--text-3); font-weight: 600; }
 .fin-summary-val { font-family: 'Sora', sans-serif; font-size: 14.5px; font-weight: 800; color: var(--text); margin-top: 2px; }
+.fin-summary-card.gold .fin-summary-val { color: var(--gold); }
+
+/* صف "الفائض" مستقل أسفل عمودَي التحصيل/التسليم داخل نفس بطاقة الثوابت — مفصول بخط متقطّع رفيع */
+.fin-summary-highlight { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); text-align: center; }
+.fin-summary-highlight .fin-summary-val { font-size: 18px; }
 
 /* ═══════════════════ شريط تنقّل سريع بأرقام الأشهر — أفقي قابل للتمرير، الشهر الجاري مميَّز ═══════════════════ */
 .month-quick-nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; }
