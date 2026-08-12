@@ -562,34 +562,41 @@ async function showMonthsSubTab(subContent, assoc) {
   const list = subContent.querySelector('#months-list');
   months.forEach(m => {
     const mProg = computeMonthProgress(m.date);
-    const stateLabel = mProg.state === 'past' ? 'شهر ماضٍ' : mProg.state === 'current' ? 'الشهر الجاري' : 'شهر قادم';
+    const stateBadge = mProg.state === 'current' ? '<span class="badge badge-gold" style="margin-inline-start:6px">الشهر الجاري</span>' : '';
     const cs = confirmSummary[m.monthNum] || { collectionDone: 0, collectionPending: 0, deliveryDone: 0, deliveryPending: 0 };
     const hasDelivery = cs.deliveryDone > 0 || cs.deliveryPending > 0;
 
+    // بطاقة مدمجة ومختصرة: (1) الثوابت — تحصيل الشهر النظري، ما سيُسلَّم منه فعلياً، والفائض؛
+    // (2) التأكيد الفعلي مجمَّعاً حسب الحالة (تم/متبقٍ) بنفس أسلوب الملخص المالي لتفصيل الجمعية —
+    // بديل مباشر عن الكتلة النظرية الطويلة + شريط السعة الزمنية السابقين
     const el = document.createElement('div');
     el.className = 'card';
     el.id = 'month-card-' + m.monthNum;
     el.style.cursor = 'pointer';
     el.innerHTML =
-      '<div class="flex-between"><span style="font-weight:800">الشهر ' + formatNumber(m.monthNum) + '</span>' +
+      '<div class="flex-between"><span style="font-weight:800">الشهر ' + formatNumber(m.monthNum) + stateBadge + '</span>' +
       '<span class="badge badge-' + (m.closed ? 'gray' : 'warning') + '">' + (m.closed ? 'مغلق' : 'مفتوح') + '</span></div>' +
       renderDualDateHtml(m.date) +
-      '<div class="capacity-bar-wrap mt-16">' + renderProgressBarHtml(mProg.percent, mProg.state === 'past' ? 'success' : mProg.state === 'current' ? 'warning' : '') +
-        '<div class="capacity-label"><span>' + stateLabel + '</span><span>' + mProg.percent + '٪</span></div></div>' +
-      '<div class="card-title mt-16" style="font-size:12px;color:var(--text-3);margin-bottom:8px">سعة الشهر (نظرية — حسب الرغبات)</div>' +
-      '<div class="grid grid-3">' +
-        '<div class="stat-card"><div class="n">' + formatCurrency(m.fixedRiyal) + '</div><div class="l">تحصيل ثابت</div></div>' +
-        '<div class="stat-card"><div class="n">' + formatCurrency(m.usedRiyal) + '</div><div class="l">مُخصَّص</div></div>' +
-        '<div class="stat-card"><div class="n">' + formatCurrency(m.remainRiyal) + '</div><div class="l">متبقٍ</div></div>' +
+      '<div class="grid grid-3 mt-16">' +
+        '<div class="stat-card"><div class="n">' + formatCurrency(m.fixedRiyal) + '</div><div class="l">تحصيل هذا الشهر</div></div>' +
+        '<div class="stat-card"><div class="n">' + formatCurrency(m.usedRiyal) + '</div><div class="l">سيتم تسليمه هذا الشهر</div></div>' +
+        '<div class="stat-card"><div class="n">' + formatCurrency(m.remainRiyal) + '</div><div class="l">الفائض لهذا الشهر</div></div>' +
       '</div>' +
-      '<div class="card-title mt-16" style="font-size:12px;color:var(--text-3);margin-bottom:8px">التأكيد الفعلي (حسب تشيك بوكس التحصيل/التسليم)</div>' +
-      '<div class="grid grid-2" style="gap:8px">' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(cs.collectionDone) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(cs.collectionPending) + '</div></div>' +
-        (hasDelivery ? (
-          '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(cs.deliveryDone) + '</div></div>' +
-          '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(cs.deliveryPending) + '</div></div>'
-        ) : '') +
+      '<div class="fin-summary">' +
+        '<div class="fin-summary-card success">' +
+          '<div class="fin-summary-title"><span class="fin-dot"></span>تم فعلياً (تشيك بوكس)</div>' +
+          '<div class="fin-summary-cols">' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">تحصيل</div><div class="fin-summary-val">' + formatCurrency(cs.collectionDone) + '</div></div>' +
+            (hasDelivery ? '<div class="fin-summary-col"><div class="fin-summary-label">تسليم</div><div class="fin-summary-val">' + formatCurrency(cs.deliveryDone) + '</div></div>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="fin-summary-card warning">' +
+          '<div class="fin-summary-title"><span class="fin-dot"></span>متبقٍ (لم يُختَر التشيك بوكس بعد)</div>' +
+          '<div class="fin-summary-cols">' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">تحصيل</div><div class="fin-summary-val">' + formatCurrency(cs.collectionPending) + '</div></div>' +
+            (hasDelivery ? '<div class="fin-summary-col"><div class="fin-summary-label">تسليم</div><div class="fin-summary-val">' + formatCurrency(cs.deliveryPending) + '</div></div>' : '') +
+          '</div>' +
+        '</div>' +
       '</div>';
     el.addEventListener('click', withCardLoading(el, () => showMonthDetailModal(subContent, assoc, m)));
     list.appendChild(el);

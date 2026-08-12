@@ -33,18 +33,41 @@
 .login-card .form-control:focus { border-color: var(--indigo-l); background: rgba(255,255,255,0.10); box-shadow: 0 0 0 3px rgba(116,143,252,0.18); }
 .login-card .btn-gold { box-shadow: 0 8px 24px rgba(240,180,41,0.4); }
 
+/* زر البصمة — مظهر مجسَّم (نيومورفيزم): "ينبثق" من خلفية شاشة الدخول الداكنة نفسها بظلال مزدوجة
+   ناعمة بدل حدّ مسطّح، ويُغرَق للداخل عند الضغط لإيهام حقيقي بالعمق بلا أي تدرّج لوني صارخ */
 .bio-btn {
-  width: 100%; margin-top: 18px; border: 1.5px solid var(--gold); border-radius: var(--pill);
+  width: 100%; margin-top: 18px; border: none; border-radius: var(--pill);
   padding: 14px; display: flex; align-items: center; justify-content: center; gap: 10px;
-  color: var(--gold); background: transparent; cursor: pointer; font-weight: 700; font-size: 13.5px;
-  transition: background .22s var(--ease);
+  color: var(--gold); background: var(--ink); cursor: pointer; font-weight: 700; font-size: 13.5px;
+  box-shadow: 6px 6px 14px rgba(0,0,0,0.55), -5px -5px 12px rgba(255,255,255,0.035);
+  transition: box-shadow .22s var(--ease), transform .15s var(--ease);
 }
-.bio-btn:hover:not(:disabled) { background: rgba(240,180,41,0.10); }
+.bio-btn:hover:not(:disabled) { box-shadow: 4px 4px 10px rgba(0,0,0,0.5), -4px -4px 9px rgba(255,255,255,0.05); }
+.bio-btn:active:not(:disabled) {
+  box-shadow: inset 4px 4px 9px rgba(0,0,0,0.6), inset -3px -3px 8px rgba(255,255,255,0.03);
+  transform: scale(.99);
+}
 .bio-btn:disabled { opacity: .5; cursor: not-allowed; }
-.bio-ring { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--gold); position: relative; flex-shrink: 0; }
-.bio-btn.btn-loading .bio-ring { opacity: 0; }
-.bio-ring::after { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: var(--gold); animation: bioPulse 2s ease-in-out infinite; }
-@keyframes bioPulse { 0%,100% { opacity: .35; transform: scale(.75); } 50% { opacity: 1; transform: scale(1); } }
+.bio-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.bio-icon .icon-svg { width: 20px; height: 20px; color: var(--gold); }
+.bio-btn.btn-loading .bio-icon { opacity: 0; } /* الزر يتحوّل لشريط تقدّم متحرك أثناء التحميل (سلوك موحّد لكل أزرار الموقع) */
+
+/* حلقة "جاري التحقق من هويتك" — شرطات ثابتة تماماً بلا حركة، وطبقة توهّج شفّافة فوقها وحدها تدور
+   ببطء حول الحلقة (mix-blend-mode: screen يجعلها تُضيء الشرطات تحتها بدل تغطيتها) — الدوران بطيء
+   عمداً حتى تُقرأ كإضاءة متنقّلة بين نقاط ثابتة، لا كحلقة كاملة تدور ككل */
+.verify-ring { position: relative; width: 20px; height: 20px; flex-shrink: 0; display: inline-block; }
+.verify-ring-dashes, .verify-ring-glow {
+  position: absolute; inset: 0; border-radius: 50%;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
+}
+.verify-ring-dashes { background: repeating-conic-gradient(rgba(240,180,41,0.32) 0deg 7deg, transparent 7deg 24deg); }
+.verify-ring-glow {
+  background: conic-gradient(from 0deg, transparent 0deg, var(--gold-l) 16deg, transparent 60deg);
+  mix-blend-mode: screen; animation: verifyRingSpin 4.8s linear infinite;
+}
+@keyframes verifyRingSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .verify-ring-glow { animation: none; opacity: .6; } }
 
 .login-back { display: block; text-align: center; margin-top: 16px; font-size: 12px; color: rgba(255,255,255,0.45); background: none; border: none; cursor: pointer; }
 .login-back:hover { color: rgba(255,255,255,0.7); }

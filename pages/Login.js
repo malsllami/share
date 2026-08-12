@@ -8,6 +8,7 @@ import { buildFullPhone, extractLocalPart, renderPhoneInputGroup, bindPhoneLocal
 import { showToast } from '../components/Toast.js';
 import { withButtonLoading } from '../components/Button.js';
 import { RP_ID, RP_NAME } from '../config/config.js';
+import { ICONS } from '../utils/icons.js';
 
 // دورة تجديد الـchallenge المباشر بالخلفية — أقل من صلاحية الكاش بالخادم (120 ثانية) لضمان
 // عدم انتهاء صلاحيته بين تحميل الشاشة وضغطة المستخدم الفعلية (قد يترك الشاشة مفتوحة دقائق)
@@ -29,7 +30,34 @@ function guessDeviceName() {
   return browser ? os + ' · ' + browser : os;
 }
 
+// تخمين نوع المصادقة الحيوية الأرجح لهذا الجهاز — WebAuthn لا يكشف نوع المصادقة الفعلي (وجه/بصمة)
+// قبل إتمامها لأسباب خصوصية، فهذا تخمين منطقي حسب نظام التشغيل فقط (نفس القيد المعياري في كل التطبيقات
+// المشابهة)؛ يُستخدَم فقط لاختيار أيقونة/نص الزر الأقرب لواقع الجهاز، لا لأي قرار أمني فعلي
+function guessBiometricKind() {
+  const ua = navigator.userAgent;
+  // آيباد بواجهة سطح مكتب (iPadOS 13+) يُعرِّف نفسه كـ Macintosh — يُميَّز عبر دعم اللمس
+  const isIPadOS13Plus = /macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+  if (/iphone|ipod|ipad/i.test(ua) || isIPadOS13Plus) return 'faceid';
+  if (/macintosh/i.test(ua)) return 'touchid';
+  if (/android/i.test(ua)) return 'fingerprint';
+  if (/windows/i.test(ua)) return 'windowsHello';
+  return 'fingerprint';
+}
+
+const BIOMETRIC_META = {
+  faceid:       { icon: ICONS.faceId,       primary: 'الدخول بالوجه',            login: 'الدخول بالوجه',            link: 'ربط الوجه بهذا الجهاز' },
+  touchid:      { icon: ICONS.touchId,      primary: 'الدخول بالبصمة',           login: 'الدخول ببصمة الجهاز',      link: 'ربط بصمة هذا الجهاز' },
+  fingerprint:  { icon: ICONS.fingerprint,  primary: 'الدخول بالبصمة',           login: 'الدخول ببصمة الجهاز',      link: 'ربط بصمة هذا الجهاز' },
+  windowsHello: { icon: ICONS.windowsHello, primary: 'الدخول عبر Windows Hello', login: 'الدخول عبر Windows Hello', link: 'ربط الجهاز عبر Windows Hello' },
+};
+
+// حلقة "جاري التحقق" — شرطات ثابتة + طبقة توهّج تدور حولها وحدها (انظر .verify-ring في components.css)
+const VERIFY_RING_HTML = '<span class="verify-ring" aria-hidden="true"><span class="verify-ring-dashes"></span><span class="verify-ring-glow"></span></span>';
+
 export function renderLoginPage(root, { onLoginSuccess }) {
+  const bioKind = guessBiometricKind();
+  const bioMeta = BIOMETRIC_META[bioKind];
+
   root.innerHTML =
     '<div class="login-screen">' +
       '<div class="login-card">' +
@@ -38,9 +66,9 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         '<div class="login-sub">إدارة الجمعيات المالية</div>' +
         '<div id="login-step-primary">' +
           '<div class="login-sub" style="margin-bottom:18px">اضغط للدخول ببصمة هذا الجهاز مباشرة</div>' +
-          '<button id="login-primary-bio-btn" class="bio-btn" disabled><span class="bio-ring"></span><span>الدخول بالبصمة</span></button>' +
+          '<button id="login-primary-bio-btn" class="bio-btn" disabled><span class="bio-icon">' + bioMeta.icon + '</span><span>' + bioMeta.primary + '</span></button>' +
           '<p class="login-sub hidden" id="login-primary-bio-status" style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px">' +
-            '<span class="spinner" style="width:15px;height:15px;border-width:2px;margin:0"></span><span>جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</span>' +
+            VERIFY_RING_HTML + '<span>جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</span>' +
           '</p>' +
           '<button id="login-show-phone-btn" class="login-back" type="button">أو أدخل برقم الجوال</button>' +
         '</div>' +
@@ -55,9 +83,9 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         '</div>' +
         '<div id="login-step-bio" class="hidden">' +
           '<div class="login-sub" id="login-bio-text" style="margin-bottom:18px"></div>' +
-          '<button id="login-bio-btn" class="bio-btn"><span class="bio-ring"></span><span id="login-bio-btn-text">الدخول ببصمة الجهاز</span></button>' +
+          '<button id="login-bio-btn" class="bio-btn"><span class="bio-icon">' + bioMeta.icon + '</span><span id="login-bio-btn-text">' + bioMeta.login + '</span></button>' +
           '<p class="login-sub hidden" id="login-bio-status" style="margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px">' +
-            '<span class="spinner" style="width:15px;height:15px;border-width:2px;margin:0"></span><span>جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</span>' +
+            VERIFY_RING_HTML + '<span>جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</span>' +
           '</p>' +
           '<button id="login-back-btn" class="login-back" type="button">تغيير رقم الجوال</button>' +
         '</div>' +
@@ -154,15 +182,15 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         showPhoneError(err.message);
         return;
       }
-      bioText.textContent = 'مرحباً ' + result.memberName + '، هذا أول دخول لك — اضغط للربط ببصمة هذا الجهاز';
-      bioBtnText.textContent = 'ربط بصمة هذا الجهاز';
+      bioText.textContent = 'مرحباً ' + result.memberName + '، هذا أول دخول لك — اضغط لـ' + bioMeta.link;
+      bioBtnText.textContent = bioMeta.link;
     } else {
       currentMode = 'login';
       currentMemberId = result.memberId;
       currentChallenge = result.challenge;
       currentCredentialIds = result.credentialIds;
       bioText.textContent = 'تحقق من هويتك للمتابعة';
-      bioBtnText.textContent = 'الدخول ببصمة الجهاز';
+      bioBtnText.textContent = bioMeta.login;
     }
     stepPhone.classList.add('hidden');
     stepBio.classList.remove('hidden');
