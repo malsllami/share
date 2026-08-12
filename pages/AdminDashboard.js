@@ -578,7 +578,7 @@ async function showMonthsSubTab(subContent, assoc) {
       '<span class="badge badge-' + (m.closed ? 'gray' : 'warning') + '">' + (m.closed ? 'مغلق' : 'مفتوح') + '</span></div>' +
       renderDualDateHtml(m.date) +
       '<div class="fin-summary mt-16">' +
-        '<div class="fin-summary-card gold">' +
+        '<div class="fin-summary-card info">' +
           '<div class="fin-summary-cols">' +
             '<div class="fin-summary-col"><div class="fin-summary-label">التحصيل لهذا الشهر</div><div class="fin-summary-val">' + formatCurrency(m.fixedRiyal) + '</div></div>' +
             '<div class="fin-summary-col"><div class="fin-summary-label">التسليم لهذا الشهر</div><div class="fin-summary-val">' + formatCurrency(m.usedRiyal) + '</div></div>' +
