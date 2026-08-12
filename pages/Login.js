@@ -2,7 +2,7 @@
 // يفتح نافذة النظام مباشرة بلا أي إدخال، لأي جهاز سبق أن رُبطت بصمته بعضو. رقم الجوال يبقى مساراً
 // احتياطياً (جهاز جديد لم يُربط بعد، أو أول دخول لعضو أضافه المدير حديثاً).
 import { callApi } from '../services/api.js';
-import { registerDeviceCredential, loginWithDeviceCredential, loginWithDiscoverableCredential, isWebAuthnSupported } from '../services/webauthn.js';
+import { registerDeviceCredential, loginWithDiscoverableCredential, isWebAuthnSupported } from '../services/webauthn.js';
 import { saveSession, rememberPhone, getRememberedPhone } from '../services/auth.js';
 import { buildFullPhone, extractLocalPart, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { showToast } from '../components/Toast.js';
@@ -80,6 +80,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
           '<div class="login-sub" id="login-bio-text" style="margin-bottom:18px"></div>' +
           '<button id="login-bio-btn" class="bio-btn"><span class="bio-icon">' + bioMeta.icon + '</span><span id="login-bio-btn-text">' + bioMeta.login + '</span></button>' +
           '<p class="login-sub hidden" id="login-bio-status" style="margin-top:12px">جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</p>' +
+          '<button id="login-skip-bio-btn" class="login-back" type="button" style="margin-top:14px">تسجيل الدخول مباشرة بلا ربط بصمة</button>' +
           '<button id="login-back-btn" class="login-back" type="button">تغيير رقم الجوال</button>' +
         '</div>' +
       '</div>' +
@@ -98,13 +99,12 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   const phoneError = root.querySelector('#login-phone-error');
   const primaryBioBtn = root.querySelector('#login-primary-bio-btn');
   const primaryBioStatus = root.querySelector('#login-primary-bio-status');
+  const skipBioBtn = root.querySelector('#login-skip-bio-btn');
 
   let currentPhone = null;
-  let currentMode = 'login'; // 'login' | 'register'
   let currentMemberId = null;
   let currentMemberName = null;
   let currentChallenge = null;
-  let currentCredentialIds = null;
 
   // ── الدخول المباشر بلا رقم جوال (Discoverable Credential) ──
   let discChallenge = null;
@@ -153,8 +153,29 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     stepPhone.classList.remove('hidden');
   }
 
+  // رقم الجوال وحده كافٍ لتسجيل الدخول (لا وسيلة تحقق ثانية) — بناءً على طلب محمد صراحة: البصمة
+  // والجوال خياران متكافئان، لا يفرض أحدهما الآخر أبداً. تُستدعى مباشرة لعضو مسجَّل مسبقاً بلا أي
+  // خطوة بصمة، ومن زر "تخطّي" لعضو جديد اختار عدم ربط بصمة جهازه الآن.
+  async function loginDirectlyByPhone(phone) {
+    let result;
+    try {
+      result = await callApi('loginByPhone', { phone });
+    } catch (err) {
+      showPhoneError(err.message);
+      return;
+    }
+    saveSession({ memberId: result.memberId, memberName: result.memberName, isAdmin: result.isAdmin });
+    rememberPhone(phone);
+    stopDiscRefreshLoop();
+    onLoginSuccess();
+  }
+
   // يجلب الـchallenge مسبقاً هنا (وليس لحظة ضغط زر البصمة) — طلب شبكي داخل معالج الضغط
   // مباشرة قد يُفقد المتصفح "إذن التفاعل الحديث" اللازم لفتح واجهة WebAuthn فيرفضها بخطأ NotAllowedError.
+  //
+  // ملاحظة: خطوة البصمة (stepBio) تظهر الآن فقط لعضو جديد لم يربط أي جهاز بعد — وحتى هنا هي عرض
+  // اختياري لربط بصمة الجهاز لدخول أسرع لاحقاً (زر "تخطّي" يسجّل دخوله فوراً برقم جواله وحده). عضو
+  // لديه جهاز مربوط مسبقاً يُسجَّل دخوله برقم جواله مباشرة بلا أي خطوة بصمة إضافية.
   async function goToBioStep(phone) {
     phoneError.classList.add('hidden');
     let result;
@@ -166,26 +187,23 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     }
 
     currentPhone = phone;
-    if (result.needsRegistration) {
-      currentMode = 'register';
-      currentMemberId = result.memberId;
-      currentMemberName = result.memberName;
-      try {
-        currentChallenge = (await callApi('beginDeviceRegistration', { phone })).challenge;
-      } catch (err) {
-        showPhoneError(err.message);
-        return;
-      }
-      bioText.textContent = 'مرحباً ' + result.memberName + '، هذا أول دخول لك — اضغط لـ' + bioMeta.link;
-      bioBtnText.textContent = bioMeta.link;
-    } else {
-      currentMode = 'login';
-      currentMemberId = result.memberId;
-      currentChallenge = result.challenge;
-      currentCredentialIds = result.credentialIds;
-      bioText.textContent = 'تحقق من هويتك للمتابعة';
-      bioBtnText.textContent = bioMeta.login;
+    // المتصفح لا يدعم WebAuthn إطلاقاً — لا معنى لعرض خطوة "ربط بصمة" ستفشل حتماً، فيُسجَّل الدخول
+    // مباشرة برقم الجوال بغضّ النظر عن needsRegistration (لا يمكن لهذا الجهاز ربط بصمة أصلاً)
+    if (!result.needsRegistration || !isWebAuthnSupported()) {
+      await loginDirectlyByPhone(phone);
+      return;
     }
+
+    currentMemberId = result.memberId;
+    currentMemberName = result.memberName;
+    try {
+      currentChallenge = (await callApi('beginDeviceRegistration', { phone })).challenge;
+    } catch (err) {
+      showPhoneError(err.message);
+      return;
+    }
+    bioText.textContent = 'مرحباً ' + result.memberName + '، هذا أول دخول لك — يمكنك ربط بصمة هذا الجهاز الآن لدخول أسرع لاحقاً (اختياري)';
+    bioBtnText.textContent = bioMeta.link;
     stepPhone.classList.add('hidden');
     stepBio.classList.remove('hidden');
   }
@@ -193,11 +211,13 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   root.querySelector('#login-show-phone-btn').addEventListener('click', showPhoneStep);
   root.querySelector('#login-to-primary-btn').addEventListener('click', showPrimaryStep);
 
+  // ملاحظة: لا فحص لدعم WebAuthn هنا بعد الآن — رقم الجوال وحده كافٍ لتسجيل دخول عضو موجود مسبقاً
+  // بلا أي حاجة للبصمة إطلاقاً؛ فحص الدعم يبقى ذا معنى فقط داخل خطوة "ربط بصمة الجهاز" الاختيارية
+  // نفسها (goToBioStep) لعضو جديد يريد ربط جهازه فعلاً، لا كشرط عام لمجرّد الدخول برقم الجوال
   const continueBtn = root.querySelector('#login-continue-btn');
   continueBtn.addEventListener('click', withButtonLoading(continueBtn, async () => {
     const phone = buildFullPhone(phoneInput.value);
     if (!phone) { showPhoneError('رقم الجوال غير صالح — أدخل 9 أرقام تبدأ بـ5 بدون صفر أو مفتاح الدولة'); return; }
-    if (!isWebAuthnSupported()) { showPhoneError('هذا المتصفح لا يدعم تسجيل الدخول بالبصمة'); return; }
     await goToBioStep(phone);
   }));
 
@@ -205,6 +225,10 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     stepBio.classList.add('hidden');
     stepPhone.classList.remove('hidden');
   });
+
+  skipBioBtn.addEventListener('click', withButtonLoading(skipBioBtn, async () => {
+    await loginDirectlyByPhone(currentPhone);
+  }));
 
   primaryBioBtn.addEventListener('click', withButtonLoading(primaryBioBtn, async () => {
     // إيقاف حلقة التجديد الدوري فوراً — وإلا قد تستبدل discChallenge/discSessionId بقيم جلسة جديدة
@@ -254,54 +278,36 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     onLoginSuccess();
   }));
 
+  // زر ربط البصمة هنا يخدم حالة واحدة فقط الآن: عضو جديد اختار ربط بصمة جهازه اختيارياً (بدل التخطّي
+  // وتسجيل الدخول برقم الجوال مباشرة عبر skipBioBtn أعلاه) — تسجيل الدخول برقم جوال عضو موجود مسبقاً
+  // لا يمرّ من هنا إطلاقاً بعد الآن (goToBioStep يستدعي loginDirectlyByPhone مباشرة لتلك الحالة)
   bioBtn.addEventListener('click', withButtonLoading(bioBtn, async () => {
     // زر البصمة نفسه يتحوّل لشريط تقدّم بلا نص (سلوك موحّد لكل أزرار الموقع)، لكن هذا وحده لا يوضّح
     // للمستخدم أنه يجب إكمال العملية في نافذة النظام (البصمة/التعرف على الوجه) التي قد تستغرق ثوانٍ —
     // فيظهر نص حالة صريح تحت الزر طوال هذه الفترة بدل أن يبدو الزر "فارغاً بلا استجابة"
     bioStatus.classList.remove('hidden');
     try {
-      if (currentMode === 'register') {
-        const reg = await registerDeviceCredential({
-          challenge: currentChallenge,
-          memberId: currentMemberId,
-          memberName: currentMemberName,
-          rpId: RP_ID, rpName: RP_NAME,
-        });
-        const completeResult = await callApi('completeDeviceRegistration', {
-          memberId: currentMemberId,
-          deviceName: guessDeviceName(),
-          clientDataJSON: reg.clientDataJSON,
-          attestationObject: reg.attestationObject,
-        });
-        showToast('تم ربط بصمة جهازك بنجاح', 'success');
-        // بصمة النظام (userVerification:'required') تحقّقت للتو أثناء التسجيل نفسه — إثبات هوية كافٍ
-        // وحديث بما يكفي لتسجيل الدخول فوراً، بلا حاجة لإجبار المستخدم على بصمة نظام ثانية منفصلة
-        // (goToBioStep سابقاً كانت تُعيد كامل تدفق الدخول من الصفر، فتفرض navigator.credentials.get
-        // إضافية — بصمتان بدل واحدة لعملية يُفترض أنها "دخول واحد")
-        saveSession({ memberId: completeResult.memberId, memberName: completeResult.memberName, isAdmin: completeResult.isAdmin });
-        rememberPhone(currentPhone);
-        stopDiscRefreshLoop();
-        onLoginSuccess();
-        return;
-      }
-
-      const assertion = await loginWithDeviceCredential({
-        challenge: currentChallenge, credentialIds: currentCredentialIds, rpId: RP_ID,
-      });
-      const result = await callApi('completeDeviceLogin', {
+      const reg = await registerDeviceCredential({
+        challenge: currentChallenge,
         memberId: currentMemberId,
-        credentialId: assertion.credentialId,
-        clientDataJSON: assertion.clientDataJSON,
-        authenticatorData: assertion.authenticatorData,
-        signature: assertion.signature,
+        memberName: currentMemberName,
+        rpId: RP_ID, rpName: RP_NAME,
       });
-
-      saveSession({ memberId: result.memberId, memberName: result.memberName, isAdmin: result.isAdmin });
+      const completeResult = await callApi('completeDeviceRegistration', {
+        memberId: currentMemberId,
+        deviceName: guessDeviceName(),
+        clientDataJSON: reg.clientDataJSON,
+        attestationObject: reg.attestationObject,
+      });
+      showToast('تم ربط بصمة جهازك بنجاح', 'success');
+      // بصمة النظام (userVerification:'required') تحقّقت للتو أثناء التسجيل نفسه — إثبات هوية كافٍ
+      // وحديث بما يكفي لتسجيل الدخول فوراً، بلا حاجة لإجبار المستخدم على بصمة نظام ثانية منفصلة
+      saveSession({ memberId: completeResult.memberId, memberName: completeResult.memberName, isAdmin: completeResult.isAdmin });
       rememberPhone(currentPhone);
-      if (result.cloneWarning) showToast('تنبيه: تم رصد نشاط غير معتاد لهذا الجهاز، راجع المدير إن لم يكن هذا دخولك', 'error', 6000);
+      stopDiscRefreshLoop();
       onLoginSuccess();
     } catch (err) {
-      showToast(err.message || 'فشل الدخول بالبصمة', 'error');
+      showToast(err.message || 'تعذّر ربط بصمة الجهاز', 'error');
     } finally {
       bioStatus.classList.add('hidden');
     }

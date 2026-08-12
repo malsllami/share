@@ -25,6 +25,13 @@ const TABS = [
   { id: 'archive', label: 'الأرشيف' },
 ];
 
+// حارس تنقّل بين التبويبات — كل ضغطة تبويب تحمل رقماً تسلسلياً جديداً؛ كل دالة عرض غير متزامنة
+// (تنتظر رد الخادم) تستقبل دالة isStale() وتتحقق منها قبل كتابة محتواها النهائي، وإلا تتجاهل
+// نتيجتها بصمت. بدون هذا: ضغط تبويب "الجمعيات" ثم "نظرة عامة" بسرعة قد يجعل رد "الجمعيات" (أبطأ لأنه
+// يحتاج طلبات شبكية أكثر) يصل متأخراً فيُكتب فوق محتوى "نظرة عامة" الصحيح المعروض فعلاً — وهذا بالضبط
+// سبب ظهور تبويب غير الذي ضغطه المدير أحياناً
+let activeTabToken_ = 0;
+
 export async function renderAdminDashboard(root, { session, onLogout }) {
   root.innerHTML = renderAppHeader({ memberName: session.memberName, isAdmin: true }) +
     '<div class="container" style="padding-top:22px">' +
@@ -38,14 +45,16 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
   const content = root.querySelector('#admin-content');
 
   function activate(tabId) {
+    const token = ++activeTabToken_;
+    const isStale = () => token !== activeTabToken_;
     tabsEl.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
     updateBottomNavActive(root, tabId);
-    if (tabId === 'overview') showOverviewTab(content, activate, session);
-    else if (tabId === 'my-associations') renderMemberAssociationsView(content, session);
-    else if (tabId === 'settings') showSettingsTab(content);
-    else if (tabId === 'members') showMembersTab(content);
-    else if (tabId === 'associations') showAssociationsTab(content, session);
-    else if (tabId === 'archive') showArchiveTab(content);
+    if (tabId === 'overview') showOverviewTab(content, activate, session, isStale);
+    else if (tabId === 'my-associations') renderMemberAssociationsView(content, session, isStale);
+    else if (tabId === 'settings') showSettingsTab(content, isStale);
+    else if (tabId === 'members') showMembersTab(content, isStale);
+    else if (tabId === 'associations') showAssociationsTab(content, session, isStale);
+    else if (tabId === 'archive') showArchiveTab(content, isStale);
   }
 
   tabsEl.innerHTML = TABS.map(t => '<button class="tab-btn" data-tab="' + t.id + '">' + t.label + '</button>').join('');
@@ -55,13 +64,14 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 }
 
 /* ══════════════════ نظرة عامة ══════════════════ */
-async function showOverviewTab(content, activate, session) {
+async function showOverviewTab(content, activate, session, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   const [associations, members, reqCount] = await Promise.all([
     callApi('getAssociations'),
     callApi('getMembers'),
     callApi('getRequestCount'),
   ]);
+  if (isStale && isStale()) return; // المدير انتقل لتبويب آخر أثناء الانتظار — لا داعي لإكمال جلب/عرض هذا التبويب
 
   const activeAssociations = associations.filter(a => a.status !== 'منتهية');
   const activeMembers = members.filter(m => m.status === 'نشط');
@@ -71,6 +81,7 @@ async function showOverviewTab(content, activate, session) {
     Promise.all(activeAssociations.map(a => callApi('getMonths', { assocId: a.id }))),
     Promise.all(activeAssociations.map(a => callApi('getAssociationFinancialSummary', { assocId: a.id }))),
   ]);
+  if (isStale && isStale()) return;
 
   let totalDeliveryExpected = 0, totalDeliveryDone = 0;
   let totalSubscriptionValue = 0, totalSubscribedMembers = 0;
@@ -174,9 +185,10 @@ const MESSAGE_PLACEHOLDER_HINTS = {
   delivery: '{الاسم} {عدد_الاسهم} {رقم_الشهر} {التاريخ} {اسهم_التسليم} {المتبقي} {تاريخ_الوقت}',
 };
 
-async function showSettingsTab(content) {
+async function showSettingsTab(content, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   const s = await callApi('getSettings');
+  if (isStale && isStale()) return;
   content.innerHTML =
     '<div class="card" style="max-width:520px">' +
       '<div class="card-title">الإعدادات العامة</div>' +
@@ -246,9 +258,10 @@ async function showSettingsTab(content) {
 }
 
 /* ══════════════════ الأعضاء ══════════════════ */
-async function showMembersTab(content) {
+async function showMembersTab(content, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   const members = await callApi('getMembers');
+  if (isStale && isStale()) return;
 
   content.innerHTML =
     '<div class="flex-between mt-16" style="margin-bottom:16px">' +
@@ -308,9 +321,10 @@ function openAddMemberModal(onDone) {
 }
 
 /* ══════════════════ الجمعيات ══════════════════ */
-async function showAssociationsTab(content, session) {
+async function showAssociationsTab(content, session, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   const associations = await callApi('getAssociations');
+  if (isStale && isStale()) return;
 
   content.innerHTML =
     '<div class="flex-between mt-16" style="margin-bottom:16px">' +
@@ -829,9 +843,10 @@ async function showWishesSubTab(subContent, assoc) {
 }
 
 /* ══════════════════ الأرشيف ══════════════════ */
-async function showArchiveTab(content) {
+async function showArchiveTab(content, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   const archived = await callApi('getArchivedAssociations');
+  if (isStale && isStale()) return;
   content.innerHTML = '<div class="section-title mt-16">الجمعيات المنتهية (أرشيف للقراءة فقط)</div><div class="grid grid-2" id="archive-list"></div>';
   const list = content.querySelector('#archive-list');
   if (archived.length === 0) list.innerHTML = '<p class="table-empty">لا توجد جمعيات مؤرشفة بعد</p>';

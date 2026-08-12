@@ -40,7 +40,11 @@ function navCardHtml(id, icon, title, bodyHtml, accentClass) {
 
 // عرض "جمعياتي" (بطاقة ملف + قائمة) بلا رأس صفحة مستقل — قابل لإعادة الاستخدام داخل لوحة
 // المدير أيضاً (المدير عضو بنفس الوقت في هذا النظام، وله جمعياته ورغباته الخاصة كأي عضو آخر).
-export async function renderMemberAssociationsView(content, session) {
+// isStale: دالة اختيارية من حارس تنقّل التبويبات بلوحة المدير (انظر AdminDashboard.js) — تُستدعى
+// بعد كل انتظار شبكي؛ إن أعادت true فهذا يعني أن المدير انتقل لتبويب آخر أثناء الانتظار، فتُتجاهَل
+// نتيجة هذا الاستدعاء بصمت بدل كتابتها فوق محتوى التبويب الجديد الصحيح. عند الاستدعاء المباشر للوحة
+// العضو نفسها (بلا تبويبات متعددة تتنافس على نفس content) يبقى isStale بلا قيمة فلا يُفعَّل أي تجاهل
+export async function renderMemberAssociationsView(content, session, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let subs, associations, myWishes, members;
   try {
@@ -51,9 +55,11 @@ export async function renderMemberAssociationsView(content, session) {
       callApi('getMembers'),
     ]);
   } catch (err) {
+    if (isStale && isStale()) return;
     content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
     return;
   }
+  if (isStale && isStale()) return;
 
   const me = members.find(m => m.id === session.memberId);
   const mine = associations
@@ -173,8 +179,11 @@ function openSubscribeSelfModal(content, session, assoc) {
         try {
           await callApi('subscribeSelf', { assocId: assoc.id, memberId: session.memberId, sharesCount: shares });
           closeModal();
-          showToast('تم الاشتراك بنجاح', 'success');
-          renderMemberAssociationsView(content, session);
+          showToast('تم الاشتراك بنجاح — اختر الآن شهر استلامك', 'success');
+          // انتقال مباشر لتفصيل الجمعية (بدل العودة لقائمة "جمعياتي" فقط) — حتى يصل العضو لبطاقة
+          // "وزّع أسهمك على شهر الاستلام" فوراً، بدل أن يبحث بنفسه عن الجمعية الجديدة بين بطاقاته
+          // ويدخلها يدوياً ليكتشف أن اختيار الرغبات موجود أصلاً (كان الالتباس هنا اكتشافياً لا برمجياً)
+          showAssociationDetail(content, session, { ...assoc, sub: { sharesCount: Number(shares) } });
         } catch (err) {
           errEl.textContent = err.message;
           errEl.classList.remove('hidden');
