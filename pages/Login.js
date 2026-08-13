@@ -1,9 +1,9 @@
-// صفحة الدخول — بصمة الجهاز الحقيقية (WebAuthn) هي المسار الافتراضي: زر واحد على الشاشة الرئيسية
-// يفتح نافذة النظام مباشرة بلا أي إدخال، لأي جهاز سبق أن رُبطت بصمته بعضو. رقم الجوال يبقى مساراً
-// احتياطياً (جهاز جديد لم يُربط بعد، أو أول دخول لعضو أضافه المدير حديثاً).
+// صفحة الدخول — رقم الجوال هو الأساس الدائم لأي زائر. البصمة الحقيقية (WebAuthn) تظهر كخيار إضافي
+// على نفس الشاشة فقط لجهاز رَبَط بصمته من قبل (عبر علم محلي في localStorage، انظر services/auth.js)
+// — المستخدم هو من يقرر أي وسيلة يستخدم، لا فرض تلقائي لأي منهما.
 import { callApi } from '../services/api.js';
 import { registerDeviceCredential, loginWithDiscoverableCredential, isWebAuthnSupported } from '../services/webauthn.js';
-import { saveSession, rememberPhone, getRememberedPhone } from '../services/auth.js';
+import { saveSession, rememberPhone, getRememberedPhone, markDeviceBiometricLinked, deviceHasBiometricLinked } from '../services/auth.js';
 import { buildFullPhone, extractLocalPart, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { showToast } from '../components/Toast.js';
 import { withButtonLoading } from '../components/Button.js';
@@ -54,6 +54,9 @@ const BIOMETRIC_META = {
 export function renderLoginPage(root, { onLoginSuccess }) {
   const bioKind = guessBiometricKind();
   const bioMeta = BIOMETRIC_META[bioKind];
+  // يظهر زر البصمة على الشاشة الرئيسية فقط لجهاز رَبَط بصمته فعلاً من قبل على هذا المتصفح تحديداً
+  // — رقم الجوال يبقى معروضاً دائماً بجانبه (أو وحده إن لم تُربط بصمة بعد)، والمستخدم يقرر بنفسه
+  const showBio = deviceHasBiometricLinked() && isWebAuthnSupported();
 
   root.innerHTML =
     '<div class="login-screen">' +
@@ -61,14 +64,12 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         '<img class="login-mark" src="assets/logo.png" alt="سهم" />' +
         '<div class="login-title">سهم</div>' +
         '<div class="login-sub">إدارة الجمعيات المالية</div>' +
-        '<div id="login-step-primary">' +
-          '<div class="login-sub" style="margin-bottom:18px">اضغط للدخول ببصمة هذا الجهاز مباشرة</div>' +
-          '<button id="login-primary-bio-btn" class="bio-btn"><span class="bio-icon">' + bioMeta.icon + '</span><span>' + bioMeta.primary + '</span></button>' +
-          '<p class="login-sub hidden" id="login-primary-bio-status" style="margin-top:12px">جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</p>' +
-          '<button id="login-show-phone-btn" class="login-back" type="button">أو أدخل برقم الجوال</button>' +
-        '</div>' +
-        '<div id="login-step-phone" class="hidden">' +
-          '<button id="login-to-primary-btn" class="login-back" type="button" style="margin-bottom:14px">رجوع للدخول بالبصمة</button>' +
+        '<div id="login-step-main">' +
+          (showBio ?
+            '<button id="login-primary-bio-btn" class="bio-btn" disabled><span class="bio-icon">' + bioMeta.icon + '</span><span>' + bioMeta.primary + '</span></button>' +
+            '<p class="login-sub hidden" id="login-primary-bio-status" style="margin-top:12px">جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</p>' +
+            '<div class="login-sub" style="margin:16px 0">أو</div>'
+          : '') +
           '<div class="form-group">' +
             '<label class="form-label">رقم الجوال</label>' +
             renderPhoneInputGroup('login-phone', extractLocalPart(getRememberedPhone())) +
@@ -89,8 +90,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   const phoneInput = root.querySelector('#login-phone');
   bindPhoneLocalInput(phoneInput);
 
-  const stepPrimary = root.querySelector('#login-step-primary');
-  const stepPhone = root.querySelector('#login-step-phone');
+  const stepMain = root.querySelector('#login-step-main');
   const stepBio = root.querySelector('#login-step-bio');
   const bioText = root.querySelector('#login-bio-text');
   const bioBtn = root.querySelector('#login-bio-btn');
@@ -113,15 +113,16 @@ export function renderLoginPage(root, { onLoginSuccess }) {
 
   // يُجلَب مسبقاً (لا عند الضغط) لنفس سبب goToBioStep أدناه: طلب شبكي داخل معالج الضغط قد يُفقد
   // "إذن التفاعل الحديث" اللازم لفتح نافذة WebAuthn فيرفضها المتصفح بخطأ NotAllowedError
-  // ملاحظة: الزر نفسه يبقى قابلاً للضغط فوراً عند فتح الصفحة (لا نعطّله بانتظار هذا الطلب) — إن ضُغط
-  // قبل اكتمال الجلب فعلياً، معالج الضغط أدناه يعرض تنبيهاً بسيطاً "يرجى الانتظار لحظة" بدل تعطيل الزر بصرياً
+  // الزر يُرسَم معطَّلاً بصرياً (disabled) من البداية ويبقى كذلك حتى يصل أول رد هنا — بدل تركه يبدو
+  // جاهزاً للضغط ثم رفض الضغطة المبكرة بتنبيه، فتطابق حالته البصرية حالته الفعلية دائماً
   async function refreshDiscoverableChallenge() {
     try {
       const result = await callApi('beginDiscoverableLogin', {});
       discChallenge = result.challenge;
       discSessionId = result.sessionId;
+      if (primaryBioBtn) primaryBioBtn.disabled = false;
     } catch (err) {
-      // فشل شبكي عابر — الزر يبقى كما هو، والمؤقت الدوري يعيد المحاولة تلقائياً بعده
+      // فشل شبكي عابر — الزر يبقى معطَّلاً، والمؤقت الدوري يعيد المحاولة تلقائياً بعده
     }
   }
 
@@ -139,18 +140,12 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     phoneError.classList.remove('hidden');
   }
 
-  function showPrimaryStep() {
-    stepPhone.classList.add('hidden');
+  // الشاشة الرئيسية الموحّدة (بصمة + جوال معاً إن وُجدت بصمة مرتبطة بهذا الجهاز، أو جوال وحده) —
+  // تحل محل شاشتي "البصمة أولاً" و"الجوال احتياطياً" السابقتين؛ لا حاجة لتبديل بينهما بعد الآن
+  function showMainStep() {
     stepBio.classList.add('hidden');
-    stepPrimary.classList.remove('hidden');
-    startDiscRefreshLoop();
-  }
-
-  function showPhoneStep() {
-    stopDiscRefreshLoop();
-    stepPrimary.classList.add('hidden');
-    stepBio.classList.add('hidden');
-    stepPhone.classList.remove('hidden');
+    stepMain.classList.remove('hidden');
+    if (primaryBioBtn) startDiscRefreshLoop();
   }
 
   // رقم الجوال وحده كافٍ لتسجيل الدخول (لا وسيلة تحقق ثانية) — بناءً على طلب محمد صراحة: البصمة
@@ -204,12 +199,9 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     }
     bioText.textContent = 'مرحباً ' + result.memberName + '، هذا أول دخول لك — يمكنك ربط بصمة هذا الجهاز الآن لدخول أسرع لاحقاً (اختياري)';
     bioBtnText.textContent = bioMeta.link;
-    stepPhone.classList.add('hidden');
+    stepMain.classList.add('hidden');
     stepBio.classList.remove('hidden');
   }
-
-  root.querySelector('#login-show-phone-btn').addEventListener('click', showPhoneStep);
-  root.querySelector('#login-to-primary-btn').addEventListener('click', showPrimaryStep);
 
   // ملاحظة: لا فحص لدعم WebAuthn هنا بعد الآن — رقم الجوال وحده كافٍ لتسجيل دخول عضو موجود مسبقاً
   // بلا أي حاجة للبصمة إطلاقاً؛ فحص الدعم يبقى ذا معنى فقط داخل خطوة "ربط بصمة الجهاز" الاختيارية
@@ -221,16 +213,13 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     await goToBioStep(phone);
   }));
 
-  root.querySelector('#login-back-btn').addEventListener('click', () => {
-    stepBio.classList.add('hidden');
-    stepPhone.classList.remove('hidden');
-  });
+  root.querySelector('#login-back-btn').addEventListener('click', showMainStep);
 
   skipBioBtn.addEventListener('click', withButtonLoading(skipBioBtn, async () => {
     await loginDirectlyByPhone(currentPhone);
   }));
 
-  primaryBioBtn.addEventListener('click', withButtonLoading(primaryBioBtn, async () => {
+  if (primaryBioBtn) primaryBioBtn.addEventListener('click', withButtonLoading(primaryBioBtn, async () => {
     // إيقاف حلقة التجديد الدوري فوراً — وإلا قد تستبدل discChallenge/discSessionId بقيم جلسة جديدة
     // في منتصف محاولة دخول جارية فعلياً (مثلاً إن استغرق المستخدم أكثر من 90 ثانية أمام نافذة النظام)،
     // فيفشل completeDiscoverableLogin لاحقاً بـ"انتهت صلاحية المحاولة" رغم نجاح البصمة فعلياً
@@ -247,7 +236,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       // لهذا الموقع" و"المستخدم ألغى العملية" معاً — لا طريقة برمجية للتفريق بينهما
       if (err && err.name === 'NotAllowedError') {
         showToast('لم يتم العثور على بصمة مسجَّلة لهذا الجهاز على سهم، أو تم إلغاء العملية', 'error', 4500);
-        showPhoneStep();
+        showMainStep();
       } else {
         showToast(err.message || 'تعذّر فتح نافذة البصمة — جرّب الدخول برقم الجوال', 'error');
         startDiscRefreshLoop(); // المستخدم يبقى بالخطوة الأساسية — إعادة تشغيل التجديد الدوري لا مجرد تحديث لمرة واحدة
@@ -273,6 +262,8 @@ export function renderLoginPage(root, { onLoginSuccess }) {
 
     stopDiscRefreshLoop();
     saveSession({ memberId: result.memberId, memberName: result.memberName, isAdmin: result.isAdmin });
+    // شبكة أمان: تأكيد العلم المحلي رغم أن الزر لم يكن ليظهر أصلاً بدونه — احتياطاً لأي حالة نادرة
+    markDeviceBiometricLinked();
     if (result.cloneWarning) showToast('تنبيه: تم رصد نشاط غير معتاد لهذا الجهاز، راجع المدير إن لم يكن هذا دخولك', 'error', 6000);
     primaryBioStatus.classList.add('hidden');
     onLoginSuccess();
@@ -304,6 +295,9 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       // وحديث بما يكفي لتسجيل الدخول فوراً، بلا حاجة لإجبار المستخدم على بصمة نظام ثانية منفصلة
       saveSession({ memberId: completeResult.memberId, memberName: completeResult.memberName, isAdmin: completeResult.isAdmin });
       rememberPhone(currentPhone);
+      // يُسجَّل العلم المحلي الآن — المرة القادمة التي يفتح فيها هذا الجهاز صفحة الدخول سيظهر زر
+      // البصمة على الشاشة الرئيسية بجانب رقم الجوال مباشرة
+      markDeviceBiometricLinked();
       stopDiscRefreshLoop();
       onLoginSuccess();
     } catch (err) {
@@ -313,5 +307,5 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     }
   }));
 
-  startDiscRefreshLoop();
+  if (primaryBioBtn) startDiscRefreshLoop();
 }

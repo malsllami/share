@@ -66,26 +66,29 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 /* ══════════════════ نظرة عامة ══════════════════ */
 async function showOverviewTab(content, activate, session, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  const [associations, members, reqCount] = await Promise.all([
-    callApi('getAssociations'),
-    callApi('getMembers'),
-    callApi('getRequestCount'),
-  ]);
-  if (isStale && isStale()) return; // المدير انتقل لتبويب آخر أثناء الانتظار — لا داعي لإكمال جلب/عرض هذا التبويب
+  // استدعاء واحد فقط بدل 3+2×عدد الجمعيات الجارية (كان يُنتج عشرات الطلبات المتزامنة ويُبطئ فتح
+  // اللوحة أحياناً لدقائق) — كل الحلقة تنفَّذ الآن داخل الخادم عبر getOverviewBundle (Associations.gs)
+  let bundle;
+  try {
+    bundle = await callApi('getOverviewBundle');
+  } catch (err) {
+    if (isStale && isStale()) return; // المدير انتقل لتبويب آخر أثناء الانتظار — لا داعي لعرض خطأ فوق تبويب غير هذا
+    content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
+    return;
+  }
+  if (isStale && isStale()) return;
 
+  const { associations, members, reqCount, monthsByAssoc, summaryByAssoc } = bundle;
   const activeAssociations = associations.filter(a => a.status !== 'منتهية');
   const activeMembers = members.filter(m => m.status === 'نشط');
 
-  // بيانات حقيقية من الجداول مباشرة لكل جمعية جارية — لا تقدير ولا أرقام وهمية
-  const [monthsPerAssoc, summaries] = await Promise.all([
-    Promise.all(activeAssociations.map(a => callApi('getMonths', { assocId: a.id }))),
-    Promise.all(activeAssociations.map(a => callApi('getAssociationFinancialSummary', { assocId: a.id }))),
-  ]);
-  if (isStale && isStale()) return;
-
   let totalDeliveryExpected = 0, totalDeliveryDone = 0;
   let totalSubscriptionValue = 0, totalSubscribedMembers = 0;
-  summaries.forEach(s => { totalDeliveryExpected += s.deliveryExpected; totalDeliveryDone += s.deliveryDone; });
+  activeAssociations.forEach(a => {
+    const s = summaryByAssoc[a.id];
+    totalDeliveryExpected += s.deliveryExpected;
+    totalDeliveryDone += s.deliveryDone;
+  });
   activeAssociations.forEach(a => {
     totalSubscriptionValue += (Number(a.totalShares) || 0) * a.shareValue * a.duration;
     totalSubscribedMembers += Number(a.memberCount) || 0;
@@ -148,9 +151,9 @@ async function showOverviewTab(content, activate, session, isStale) {
   const list = content.querySelector('#overview-assoc-list');
   if (activeAssociations.length === 0) { list.innerHTML = '<p class="table-empty">لا توجد جمعية جارية حالياً</p>'; return; }
 
-  activeAssociations.forEach((a, idx) => {
-    const months = monthsPerAssoc[idx];
-    const s = summaries[idx];
+  activeAssociations.forEach((a) => {
+    const months = monthsByAssoc[a.id];
+    const s = summaryByAssoc[a.id];
     const closedCount = months.filter(m => m.closed).length;
     const prog = computeDurationProgress(a.startDate, a.endDate, a.duration);
     const dual = formatDualDate(a.endDate);
@@ -187,7 +190,14 @@ const MESSAGE_PLACEHOLDER_HINTS = {
 
 async function showSettingsTab(content, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  const s = await callApi('getSettings');
+  let s;
+  try {
+    s = await callApi('getSettings');
+  } catch (err) {
+    if (isStale && isStale()) return;
+    content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
+    return;
+  }
   if (isStale && isStale()) return;
   content.innerHTML =
     '<div class="card" style="max-width:520px">' +
@@ -260,7 +270,14 @@ async function showSettingsTab(content, isStale) {
 /* ══════════════════ الأعضاء ══════════════════ */
 async function showMembersTab(content, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  const members = await callApi('getMembers');
+  let members;
+  try {
+    members = await callApi('getMembers');
+  } catch (err) {
+    if (isStale && isStale()) return;
+    content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
+    return;
+  }
   if (isStale && isStale()) return;
 
   content.innerHTML =
@@ -323,7 +340,14 @@ function openAddMemberModal(onDone) {
 /* ══════════════════ الجمعيات ══════════════════ */
 async function showAssociationsTab(content, session, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  const associations = await callApi('getAssociations');
+  let associations;
+  try {
+    associations = await callApi('getAssociations');
+  } catch (err) {
+    if (isStale && isStale()) return;
+    content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
+    return;
+  }
   if (isStale && isStale()) return;
 
   content.innerHTML =
@@ -460,7 +484,13 @@ async function showAssociationAdminDetail(content, session, assoc) {
 
 async function showSubscriptionsSubTab(subContent, assoc, content, session) {
   subContent.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  const [subs, members] = await Promise.all([callApi('getSubscriptions', { assocId: assoc.id }), callApi('getMembers')]);
+  let subs, members;
+  try {
+    [subs, members] = await Promise.all([callApi('getSubscriptions', { assocId: assoc.id }), callApi('getMembers')]);
+  } catch (err) {
+    subContent.innerHTML = '<p class="table-empty">' + err.message + '</p>';
+    return;
+  }
 
   subContent.innerHTML =
     '<div class="flex-between" style="margin:14px 0"><span></span><button class="btn btn-gold btn-sm" id="add-sub-btn">+ إضافة اشتراك</button></div>' +
@@ -550,10 +580,16 @@ function openSubModal(subContent, assoc, memberId, memberName, currentShares) {
 
 async function showMonthsSubTab(subContent, assoc) {
   subContent.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  const [months, confirmSummary] = await Promise.all([
-    callApi('getMonthsWithTotals', { assocId: assoc.id }),
-    callApi('getMonthsConfirmationSummary', { assocId: assoc.id }),
-  ]);
+  let months, confirmSummary;
+  try {
+    [months, confirmSummary] = await Promise.all([
+      callApi('getMonthsWithTotals', { assocId: assoc.id }),
+      callApi('getMonthsConfirmationSummary', { assocId: assoc.id }),
+    ]);
+  } catch (err) {
+    subContent.innerHTML = '<p class="table-empty">' + err.message + '</p>';
+    return;
+  }
 
   // شريط تنقّل سريع بأرقام الأشهر — أفقي قابل للتمرير، الشهر الجاري مميَّز بالأزرق، والضغط على أي
   // رقم ينتقل مباشرة لبطاقة ذلك الشهر (Scroll) بدل التمرير اليدوي بحثاً عنه بين كل البطاقات
@@ -734,7 +770,13 @@ async function showMonthDetailModal(subContent, assoc, month) {
 
 async function showWishesSubTab(subContent, assoc) {
   subContent.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  const wishes = await callApi('getWishes', { assocId: assoc.id });
+  let wishes;
+  try {
+    wishes = await callApi('getWishes', { assocId: assoc.id });
+  } catch (err) {
+    subContent.innerHTML = '<p class="table-empty">' + err.message + '</p>';
+    return;
+  }
   subContent.innerHTML =
     '<div class="flex-between" style="margin:14px 0"><span></span><button class="btn btn-gold btn-sm" id="add-wish-btn">+ إضافة / تعديل رغبة</button></div>' +
     '<div class="table-wrap"><table><thead><tr><th>العضو</th><th>الشهر</th><th>الأسهم</th><th></th></tr></thead><tbody id="wishes-body"></tbody></table></div>';
@@ -845,7 +887,14 @@ async function showWishesSubTab(subContent, assoc) {
 /* ══════════════════ الأرشيف ══════════════════ */
 async function showArchiveTab(content, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  const archived = await callApi('getArchivedAssociations');
+  let archived;
+  try {
+    archived = await callApi('getArchivedAssociations');
+  } catch (err) {
+    if (isStale && isStale()) return;
+    content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
+    return;
+  }
   if (isStale && isStale()) return;
   content.innerHTML = '<div class="section-title mt-16">الجمعيات المنتهية (أرشيف للقراءة فقط)</div><div class="grid grid-2" id="archive-list"></div>';
   const list = content.querySelector('#archive-list');
