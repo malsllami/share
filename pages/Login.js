@@ -168,9 +168,12 @@ export function renderLoginPage(root, { onLoginSuccess }) {
   // يجلب الـchallenge مسبقاً هنا (وليس لحظة ضغط زر البصمة) — طلب شبكي داخل معالج الضغط
   // مباشرة قد يُفقد المتصفح "إذن التفاعل الحديث" اللازم لفتح واجهة WebAuthn فيرفضها بخطأ NotAllowedError.
   //
-  // ملاحظة: خطوة البصمة (stepBio) تظهر الآن فقط لعضو جديد لم يربط أي جهاز بعد — وحتى هنا هي عرض
-  // اختياري لربط بصمة الجهاز لدخول أسرع لاحقاً (زر "تخطّي" يسجّل دخوله فوراً برقم جواله وحده). عضو
-  // لديه جهاز مربوط مسبقاً يُسجَّل دخوله برقم جواله مباشرة بلا أي خطوة بصمة إضافية.
+  // ملاحظة: خطوة البصمة (stepBio) تظهر كلما لم يكن **هذا الجهاز تحديداً** يحمل العلم المحلي لربط
+  // بصمة — بصرف النظر عن needsRegistration القادم من الخادم (والذي يعكس حالة العضو ككل: "هل لديه
+  // أي جهاز آخر مرتبط في أي مكان؟"). هذا يفرّق عمداً بين السؤالين: عضو لديه جهاز آخر مرتبط لكنه
+  // يدخل الآن من جهاز جديد (أو جهاز رَبَط بصمته قبل وجود هذا العلم المحلي) يستحق نفس فرصة الربط
+  // تماماً كعضو جديد كلياً — النظام أصلاً يدعم عدة أجهزة لكل عضو (انظر gas/Devices.gs). زر "تخطّي"
+  // يبقى متاحاً دائماً لمن يريد الدخول برقم جواله فقط بلا ربط.
   async function goToBioStep(phone) {
     phoneError.classList.add('hidden');
     let result;
@@ -182,9 +185,9 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     }
 
     currentPhone = phone;
-    // المتصفح لا يدعم WebAuthn إطلاقاً — لا معنى لعرض خطوة "ربط بصمة" ستفشل حتماً، فيُسجَّل الدخول
-    // مباشرة برقم الجوال بغضّ النظر عن needsRegistration (لا يمكن لهذا الجهاز ربط بصمة أصلاً)
-    if (!result.needsRegistration || !isWebAuthnSupported()) {
+    // هذا الجهاز يحمل العلم المحلي مسبقاً، أو المتصفح لا يدعم WebAuthn إطلاقاً — لا معنى لعرض خطوة
+    // "ربط بصمة" هنا في الحالتين، فيُسجَّل الدخول مباشرة برقم الجوال
+    if (deviceHasBiometricLinked() || !isWebAuthnSupported()) {
       await loginDirectlyByPhone(phone);
       return;
     }
@@ -197,7 +200,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       showPhoneError(err.message);
       return;
     }
-    bioText.textContent = 'مرحباً ' + result.memberName + '، هذا أول دخول لك — يمكنك ربط بصمة هذا الجهاز الآن لدخول أسرع لاحقاً (اختياري)';
+    bioText.textContent = 'مرحباً ' + result.memberName + ' — يمكنك ربط بصمة هذا الجهاز الآن لدخول أسرع لاحقاً (اختياري)';
     bioBtnText.textContent = bioMeta.link;
     stepMain.classList.add('hidden');
     stepBio.classList.remove('hidden');
