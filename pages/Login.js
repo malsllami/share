@@ -258,7 +258,9 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       });
     } catch (err) {
       primaryBioStatus.classList.add('hidden');
-      showToast(err.message, 'error');
+      // مدة أطول من الافتراضي (3.2 ثانية) عمداً هنا — رسالة الخادم قد تطول (خصوصاً رسائل التشخيص
+      // المؤقتة الحالية)، وتحتاج وقتاً كافياً للقراءة أو التحديد والنسخ (Long-press) على الجوال
+      showToast(err.message, 'error', 20000);
       startDiscRefreshLoop(); // challenge جديد للمحاولة القادمة + استئناف التجديد الدوري (السابق استُهلك أو انتهت صلاحيته)
       return;
     }
