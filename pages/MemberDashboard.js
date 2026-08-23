@@ -11,6 +11,10 @@ import { formatPhoneDisplay } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading, withCardLoading } from '../components/Button.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
+import { registerDeviceCredential, isWebAuthnSupported } from '../services/webauthn.js';
+import { markDeviceBiometricLinked, deviceHasBiometricLinked } from '../services/auth.js';
+import { guessDeviceName, guessBiometricKind, BIOMETRIC_META } from '../utils/deviceBiometric.js';
+import { RP_ID, RP_NAME } from '../config/config.js';
 
 const STATUS_LABEL = { 'جديدة': 'جديدة', 'نشطة': 'نشطة', 'منتهية': 'منتهية' };
 
@@ -92,19 +96,37 @@ export async function renderMemberAssociationsView(content, session, isStale) {
     ? '<div class="section-title">جمعيات متاحة للاشتراك</div><div class="grid grid-2" id="available-assoc-list"></div>'
     : '';
 
+  // ── بطاقة ربط بصمة هذا الجهاز — تتيح ربط/تأكيد البصمة من داخل اللوحة مباشرة بعد الدخول، بلا
+  // حاجة لتسجيل خروج والمرور بخطوة الجوال لإتاحتها (كانت الطريقة الوحيدة سابقاً). لا تظهر إطلاقاً
+  // إن كان هذا المتصفح لا يدعم WebAuthn أصلاً — لا معنى لعرض خيار سيفشل حتماً
+  const bioKind = guessBiometricKind();
+  const bioMeta = BIOMETRIC_META[bioKind];
+  const bioLinked = deviceHasBiometricLinked();
+  const bioCardHtml = isWebAuthnSupported()
+    ? '<div class="card nav-card mt-16 accent-gold" id="bio-link-card">' +
+        '<div class="flex-between">' +
+          '<div class="nav-card-title">' + bioMeta.icon + ' ' + (bioLinked ? 'بصمة هذا الجهاز مرتبطة' : bioMeta.link) + '</div>' +
+          (bioLinked ? '<span class="badge badge-success">✓</span>' : '<span class="nav-card-chevron">‹</span>') +
+        '</div>' +
+        (bioLinked ? '' : '<p class="form-hint mt-16" style="margin:8px 0 0">دخول أسرع من المرة القادمة بلا حاجة لإدخال رقم الجوال</p>') +
+      '</div>'
+    : '';
+
   if (mine.length === 0) {
-    content.innerHTML = profileHtml +
+    content.innerHTML = profileHtml + bioCardHtml +
       '<div class="card text-center"><p style="color:var(--text-3)">لست مشتركاً في أي جمعية بعد.' +
       (available.length ? '' : ' تواصل مع المدير للاشتراك.') + '</p></div>' +
       availableSectionHtml;
+    wireBioLinkCard(content, session, me, isStale);
     renderAvailableAssociations(content, session, available);
     return;
   }
 
-  content.innerHTML = profileHtml +
+  content.innerHTML = profileHtml + bioCardHtml +
     '<div class="section-title">جمعياتي</div>' +
     '<div class="grid grid-2" id="assoc-list"></div>' +
     availableSectionHtml;
+  wireBioLinkCard(content, session, me, isStale);
 
   const list = content.querySelector('#assoc-list');
   mine.forEach(a => {
@@ -134,6 +156,58 @@ export async function renderMemberAssociationsView(content, session, isStale) {
   });
 
   renderAvailableAssociations(content, session, available);
+}
+
+// يربط ضغطة بطاقة "ربط بصمة هذا الجهاز" — إن كانت مرتبطة أصلاً يكتفي بتنبيه إعلامي (بلا إعادة تسجيل
+// غير ضرورية تُنشئ صفّ جهاز مكرَّراً في قاعدة البيانات بلا داعٍ)، وإلا يُنفَّذ نفس تدفق التسجيل
+// المستخدَم بخطوة "ربط بصمة الجهاز" بصفحة الدخول (pages/Login.js) حرفياً، بفارق وحيد: رقم الجوال
+// معروف مسبقاً من الجلسة (`me.phone`) بدل انتظار إدخاله يدوياً
+function wireBioLinkCard(content, session, me, isStale) {
+  const card = content.querySelector('#bio-link-card');
+  if (!card) return;
+  card.addEventListener('click', withCardLoading(card, async () => {
+    if (deviceHasBiometricLinked()) {
+      showToast('بصمة هذا الجهاز مرتبطة بالفعل', 'info');
+      return;
+    }
+    if (!me) { showToast('تعذّر تحديد رقم جوالك، أعد تحميل الصفحة وحاول مرة أخرى', 'error'); return; }
+
+    let begin;
+    try {
+      begin = await callApi('beginDeviceRegistration', { phone: me.phone });
+    } catch (err) {
+      showToast(err.message, 'error');
+      return;
+    }
+
+    let reg;
+    try {
+      reg = await registerDeviceCredential({
+        challenge: begin.challenge, memberId: begin.memberId, memberName: begin.memberName,
+        rpId: RP_ID, rpName: RP_NAME,
+      });
+    } catch (err) {
+      // نفس تصنيف NotAllowedError المستخدَم بصفحة الدخول — رسالة عربية مفهومة بدل نص المتصفح الخام
+      if (err && err.name === 'NotAllowedError') showToast('لم تكتمل عملية البصمة — تم الإلغاء أو انتهت المهلة، حاول مرة أخرى', 'error');
+      else showToast(err.message || 'تعذّر ربط بصمة الجهاز', 'error');
+      return;
+    }
+
+    try {
+      await callApi('completeDeviceRegistration', {
+        memberId: begin.memberId, deviceName: guessDeviceName(),
+        clientDataJSON: reg.clientDataJSON, attestationObject: reg.attestationObject,
+      });
+    } catch (err) {
+      showToast(err.message, 'error');
+      return;
+    }
+
+    markDeviceBiometricLinked();
+    showToast('تم ربط بصمة جهازك بنجاح', 'success');
+    if (isStale && isStale()) return; // المستخدم انتقل لمكان آخر أثناء العملية — لا داعي لإعادة رسم هذا القسم فوقه
+    renderMemberAssociationsView(content, session, isStale); // إعادة رسم فورية لتحديث حالة البطاقة (✓)
+  }));
 }
 
 // بطاقات الجمعيات "الجديدة" المتاحة للاشتراك الذاتي — كل بطاقة بها زر يفتح نافذة إدخال عدد الأسهم
