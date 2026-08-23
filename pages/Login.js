@@ -3,7 +3,7 @@
 // — المستخدم هو من يقرر أي وسيلة يستخدم، لا فرض تلقائي لأي منهما.
 import { callApi } from '../services/api.js';
 import { registerDeviceCredential, loginWithDiscoverableCredential, isWebAuthnSupported } from '../services/webauthn.js';
-import { saveSession, rememberPhone, getRememberedPhone, markDeviceBiometricLinked, deviceHasBiometricLinked } from '../services/auth.js';
+import { saveSession, rememberPhone, getRememberedPhone, markDeviceBiometricLinked, deviceHasBiometricLinked, clearDeviceBiometricLink } from '../services/auth.js';
 import { buildFullPhone, extractLocalPart, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { showToast } from '../components/Toast.js';
 import { withButtonLoading } from '../components/Button.js';
@@ -66,9 +66,11 @@ export function renderLoginPage(root, { onLoginSuccess }) {
         '<div class="login-sub">إدارة الجمعيات المالية</div>' +
         '<div id="login-step-main">' +
           (showBio ?
-            '<button id="login-primary-bio-btn" class="bio-btn" disabled><span class="bio-icon">' + bioMeta.icon + '</span><span>' + bioMeta.primary + '</span></button>' +
-            '<p class="login-sub hidden" id="login-primary-bio-status" style="margin-top:12px">جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</p>' +
-            '<div class="login-sub" style="margin:16px 0">أو</div>'
+            '<div id="login-bio-section">' +
+              '<button id="login-primary-bio-btn" class="bio-btn" disabled><span class="bio-icon">' + bioMeta.icon + '</span><span>' + bioMeta.primary + '</span></button>' +
+              '<p class="login-sub hidden" id="login-primary-bio-status" style="margin-top:12px">جاري التحقق من هويتك — أكمل العملية في نافذة النظام...</p>' +
+              '<div class="login-sub" style="margin:16px 0">أو</div>' +
+            '</div>'
           : '') +
           '<div class="form-group">' +
             '<label class="form-label">رقم الجوال</label>' +
@@ -258,10 +260,20 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       });
     } catch (err) {
       primaryBioStatus.classList.add('hidden');
+      // الخادم رفض هذا الجهاز صراحة (DEVICE_NOT_LINKED — مثلاً حُذف/أُلغي من قاعدة البيانات): نمسح
+      // العلم المحلي فوراً ونُخفي قسم البصمة من هذه الشاشة نفسها، حتى لا يبقى المستخدم عالقاً بزر
+      // بصمة لن يعمل أبداً بلا أي وسيلة لإعادة الربط — المحاولة القادمة تعرض مسار "ربط بصمة جديد"
+      let deviceUnlinked = false;
+      if (err.code === 'DEVICE_NOT_LINKED') {
+        clearDeviceBiometricLink();
+        const bioSection = root.querySelector('#login-bio-section');
+        if (bioSection) { bioSection.remove(); deviceUnlinked = true; }
+      }
       // مدة أطول من الافتراضي (3.2 ثانية) عمداً هنا — رسالة الخادم قد تطول (خصوصاً رسائل التشخيص
       // المؤقتة الحالية)، وتحتاج وقتاً كافياً للقراءة أو التحديد والنسخ (Long-press) على الجوال
       showToast(err.message, 'error', 20000);
-      startDiscRefreshLoop(); // challenge جديد للمحاولة القادمة + استئناف التجديد الدوري (السابق استُهلك أو انتهت صلاحيته)
+      // لا فائدة من استئناف تجديد الـchallenge الدوري إن كان زر البصمة نفسه قد أُزيل للتو من الشاشة
+      if (!deviceUnlinked) startDiscRefreshLoop(); // challenge جديد للمحاولة القادمة + استئناف التجديد الدوري (السابق استُهلك أو انتهت صلاحيته)
       return;
     }
 

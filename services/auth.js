@@ -40,11 +40,16 @@ export function getRememberedPhone() {
 // الحقيقة الفعلي دائماً عبر التحقق التشفيري الحقيقي لحظة الدخول.
 // Local-only flag: has this device ever linked a WebAuthn credential? Used purely to decide which
 // login screen to render — the server remains the real source of truth via actual crypto verification.
-// عمداً لا توجد دالة "مسح" — فشل NotAllowedError لا يعني بالضرورة غياب البصمة (قد يكون مجرد إلغاء
-// المستخدم للعملية)، فمسح العلم عندها قد يحرم جهازاً يملك بصمة حقيقية من رؤية الزر مستقبلاً.
 export function markDeviceBiometricLinked() {
   localStorage.setItem('sahm_device_biometric', '1');
 }
 export function deviceHasBiometricLinked() {
   return localStorage.getItem('sahm_device_biometric') === '1';
+}
+// يمسح العلم — يُستدعى فقط عندما يرفض الخادم صراحة الجهاز بأنه "غير مرتبط" (مثلاً بعد أن حذف
+// المدير جهازاً، أو حُذف صف الجهاز من قاعدة البيانات) — وليس عند مجرد NotAllowedError (قد يكون
+// مجرد إلغاء المستخدم للعملية، لا يعني غياب البصمة فعلاً). هذا "يشفي" الجهاز تلقائياً من حالة
+// عالقة (الزر يظهر لكنه لن يعمل أبداً) بإعادته لمسار "ربط بصمة جديد" في المحاولة التالية.
+export function clearDeviceBiometricLink() {
+  localStorage.removeItem('sahm_device_biometric');
 }

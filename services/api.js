@@ -48,6 +48,12 @@ export async function callApi(action, params = {}) {
     // مفهومة بدل تسريب خطأ تحليل تقني خام للمستخدم
     throw new Error('تعذّر قراءة رد الخادم — حاول مرة أخرى');
   }
-  if (data && data.error) throw new Error(data.error);
+  if (data && data.error) {
+    const err = new Error(data.error);
+    // كود اختياري إضافي (إن أرسله الخادم) — يتيح للواجهة التفريق برمجياً بين أنواع الرفض
+    // (مثلاً "الجهاز غير مرتبط فعلاً" مقابل خطأ عابر) بدل الاعتماد على مطابقة نص الرسالة الهش
+    if (data.code) err.code = data.code;
+    throw err;
+  }
   return data;
 }
