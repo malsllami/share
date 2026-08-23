@@ -304,7 +304,14 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       stopDiscRefreshLoop();
       onLoginSuccess();
     } catch (err) {
-      showToast(err.message || 'تعذّر ربط بصمة الجهاز', 'error');
+      // نفس تصنيف NotAllowedError المستخدَم بمعالج primaryBioBtn أعلاه — بدونه يظهر للمستخدم نص
+      // المتصفح الخام بالإنجليزية (مثل "The operation either timed out or was not allowed...")
+      // بدل رسالة عربية مفهومة؛ NotAllowedError يغطّي هنا إلغاء المستخدم للعملية أو انتهاء المهلة
+      if (err && err.name === 'NotAllowedError') {
+        showToast('لم تكتمل عملية البصمة — تم الإلغاء أو انتهت المهلة، حاول مرة أخرى', 'error');
+      } else {
+        showToast(err.message || 'تعذّر ربط بصمة الجهاز', 'error');
+      }
     } finally {
       bioStatus.classList.add('hidden');
     }
