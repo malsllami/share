@@ -1,5 +1,6 @@
 // عميل موحّد للاتصال بخلفية Apps Script — POST بدون رأس Content-Type مخصّص لتفادي CORS Preflight
 import { API_BASE_URL } from '../config/config.js';
+import { getIdentityToken } from './auth.js';
 
 // إعادة محاولة تلقائية واحدة فقط عند فشل شبكي أو استجابة خادم غير ناجحة (تذبذب عابر شائع مع Apps
 // Script تحت حمل أو Cold Start) — لا تُعاد المحاولة أبداً عند نجاح الاتصال لكن الخادم يرد بخطأ عمل
@@ -27,8 +28,12 @@ async function attemptFetch_(body) {
   return { kind: 'ok', res };
 }
 
+// identityToken يُرفَق تلقائياً مع كل طلب من الجلسة الحالية (إن وُجدت) — بدل الاعتماد على كل استدعاء
+// callApi عبر الموقع لإضافته يدوياً. يبقى null قبل تسجيل الدخول (مسارات الدخول نفسها لا تحتاجه أصلاً)،
+// ويُتجاهَل بأمان من أي إجراء لا يتحقق منه على الخادم. params يُنشَر بعده فيبقى بإمكانه الكتابة فوقه
+// لو مرَّره الاستدعاء صراحة (لا يحدث حالياً).
 export async function callApi(action, params = {}) {
-  const body = JSON.stringify({ action, ...params });
+  const body = JSON.stringify({ action, identityToken: getIdentityToken(), ...params });
 
   let outcome = await attemptFetch_(body);
   if (outcome.kind !== 'ok') {
