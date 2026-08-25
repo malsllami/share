@@ -80,17 +80,22 @@ async function showOverviewTab(content, activate, session, isStale) {
   if (isStale && isStale()) return;
 
   const { associations, members, reqCount, monthsByAssoc, summaryByAssoc } = bundle;
+  // "الجارية" (للعرض كبطاقات فردية أدناه) تشمل جديدة+نشطة كما كانت — كل بطاقة تعرض بيانات جمعيتها
+  // هي فقط، فلا تداخل هناك أصلاً. لكن الإجماليات المُجمَّعة (عداد التسليم الكلي/إجماليات الاشتراكات)
+  // تُحسب الآن من "نشطة" فقط — جمعية "جديدة" لم يُغلق شهرها الأول بعد، فخلط أرقامها مع جمعية نشطة
+  // فعلياً في رقم واحد مُجمَّع كان يُنتج مبلغاً مضلِّلاً لا يعكس التحصيل/التسليم المستحق الآن فعلياً.
   const activeAssociations = associations.filter(a => a.status !== 'منتهية');
+  const financiallyActiveAssociations = associations.filter(a => a.status === 'نشطة');
   const activeMembers = members.filter(m => m.status === 'نشط');
 
   let totalDeliveryExpected = 0, totalDeliveryDone = 0;
   let totalSubscriptionValue = 0, totalSubscribedMembers = 0;
-  activeAssociations.forEach(a => {
+  financiallyActiveAssociations.forEach(a => {
     const s = summaryByAssoc[a.id];
     totalDeliveryExpected += s.deliveryExpected;
     totalDeliveryDone += s.deliveryDone;
   });
-  activeAssociations.forEach(a => {
+  financiallyActiveAssociations.forEach(a => {
     totalSubscriptionValue += (Number(a.totalShares) || 0) * a.shareValue * a.duration;
     totalSubscribedMembers += Number(a.memberCount) || 0;
   });
@@ -116,7 +121,7 @@ async function showOverviewTab(content, activate, session, isStale) {
 
     // ٣) عداد التسليم الكلي — بطاقة موحَّدة (رقم إجمالي + تقسيم بعمودين + شريط تقدّم)، بدل 3 بطاقات
     // فرعية متراصّة كانت تتجاوز حدود البطاقة الأساسية بصرياً على الجوال
-    '<div class="section-title">عداد التسليم الكلي — كل الجمعيات الجارية</div>' +
+    '<div class="section-title">عداد التسليم الكلي — الجمعية النشطة</div>' +
     '<div class="card delivery-counter" style="margin-bottom:18px">' +
       '<div class="dc-total"><div class="dc-total-val">' + formatCurrency(totalDeliveryExpected) + '</div><div class="dc-total-label">الإجمالي المستحق تسليمه</div></div>' +
       '<div class="dc-split">' +
@@ -130,8 +135,8 @@ async function showOverviewTab(content, activate, session, isStale) {
 
     // ٤) إجماليات الاشتراكات — بنفس أسلوب بطاقة الإحصائيات المكدَّسة أعلاه
     '<div class="card stat-list" style="margin-bottom:18px">' +
-      '<div class="stat-list-row"><span class="stat-list-val">' + formatCurrency(totalSubscriptionValue) + '</span><span class="stat-list-label">إجمالي قيمة الاشتراكات الجارية</span></div>' +
-      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(totalSubscribedMembers) + '</span><span class="stat-list-label">إجمالي الاشتراكات الجارية</span></div>' +
+      '<div class="stat-list-row"><span class="stat-list-val">' + formatCurrency(totalSubscriptionValue) + '</span><span class="stat-list-label">إجمالي قيمة اشتراكات الجمعية النشطة</span></div>' +
+      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(totalSubscribedMembers) + '</span><span class="stat-list-label">إجمالي اشتراكات الجمعية النشطة</span></div>' +
     '</div>' +
 
     // ٥) الجمعيات الجارية — بكل تفاصيلها الحالية كاملة دون حذف أي معلومة

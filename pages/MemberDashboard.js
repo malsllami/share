@@ -73,9 +73,14 @@ export async function renderMemberAssociationsView(content, session, isStale) {
   // بالخادم يفرض نفس القيد: حالة "جديدة" فقط، تفادياً لكسر عدالة حساب السعة الشهرية التراكمية)
   const available = associations.filter(a => a.status === 'جديدة' && !subs.some(s => s.assocId === a.id));
 
-  // ── بطاقة ملف العضو: صورة رمزية بأول حرف من الاسم + رقمه + 3 إحصائيات إجمالية عبر كل جمعياته ──
-  const totalShares = mine.reduce((s, a) => s + Number(a.sub.sharesCount), 0);
-  const totalEntitlement = mine.reduce((s, a) => s + Number(a.sub.sharesCount) * a.shareValue * a.duration, 0);
+  // ── بطاقة ملف العضو: صورة رمزية بأول حرف من الاسم + رقمه + 3 إحصائيات إجمالية ──
+  // الإجماليات (أسهمي/استحقاقي) تُحسب فقط من الجمعيات "نشطة" — جمعية "جديدة" لم تبدأ فعلياً بعد
+  // (لم يُغلق شهرها الأول)، فخلط أرقامها مع جمعية نشطة فعلاً في رقم واحد مُجمَّع كان يُنتج مبلغاً
+  // مضلِّلاً لا يعكس ما هو مستحق فعلياً الآن. الجمعية الجديدة نفسها تبقى ظاهرة ببطاقتها المستقلة
+  // أدناه (بأسهمها الخاصة) — فقط لا تُحتسب ضمن هذا الملخص المُجمَّع.
+  const activeOnly = mine.filter(a => a.status === 'نشطة');
+  const totalShares = activeOnly.reduce((s, a) => s + Number(a.sub.sharesCount), 0);
+  const totalEntitlement = activeOnly.reduce((s, a) => s + Number(a.sub.sharesCount) * a.shareValue * a.duration, 0);
   const profileHtml =
     '<div class="mpc-block">' +
       '<div class="mpc-header">' +
