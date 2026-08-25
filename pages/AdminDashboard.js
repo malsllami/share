@@ -107,7 +107,8 @@ async function showOverviewTab(content, activate, session, isStale) {
     '<div class="card stat-list mt-16" style="margin-bottom:18px">' +
       '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(activeAssociations.length) + '</span><span class="stat-list-label">الجمعيات الجارية</span></div>' +
       '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(activeMembers.length) + '</span><span class="stat-list-label">الأعضاء النشطون</span></div>' +
-      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(reqCount.count) + '</span><span class="stat-list-label">طلبات السكربت</span></div>' +
+      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(reqCount.today) + '</span><span class="stat-list-label">طلبات السكربت اليوم</span></div>' +
+      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(reqCount.week) + '</span><span class="stat-list-label">طلبات السكربت آخر 7 أيام</span></div>' +
     '</div>' +
 
     // ٢) إجراءات سريعة — اختصارات لأكثر عمليتين يومية (إنشاء جمعية/إضافة عضو) + تنقّل مباشر
