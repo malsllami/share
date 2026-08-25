@@ -124,7 +124,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       showPhoneError(err.message);
       return;
     }
-    saveSession({ memberId: result.memberId, memberName: result.memberName, isAdmin: result.isAdmin });
+    saveSession({ memberId: result.memberId, memberName: result.memberName, isAdmin: result.isAdmin, identityToken: result.identityToken });
     rememberPhone(phone);
     stopDiscRefreshLoop();
     onLoginSuccess();
@@ -241,7 +241,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
     }
 
     stopDiscRefreshLoop();
-    saveSession({ memberId: result.memberId, memberName: result.memberName, isAdmin: result.isAdmin });
+    saveSession({ memberId: result.memberId, memberName: result.memberName, isAdmin: result.isAdmin, identityToken: result.identityToken });
     // شبكة أمان: تأكيد العلم المحلي رغم أن الزر لم يكن ليظهر أصلاً بدونه — احتياطاً لأي حالة نادرة
     markDeviceBiometricLinked();
     if (result.cloneWarning) showToast('تنبيه: تم رصد نشاط غير معتاد لهذا الجهاز، راجع المدير إن لم يكن هذا دخولك', 'error', 6000);
@@ -273,7 +273,7 @@ export function renderLoginPage(root, { onLoginSuccess }) {
       showToast('تم ربط بصمة جهازك بنجاح', 'success');
       // بصمة النظام (userVerification:'required') تحقّقت للتو أثناء التسجيل نفسه — إثبات هوية كافٍ
       // وحديث بما يكفي لتسجيل الدخول فوراً، بلا حاجة لإجبار المستخدم على بصمة نظام ثانية منفصلة
-      saveSession({ memberId: completeResult.memberId, memberName: completeResult.memberName, isAdmin: completeResult.isAdmin });
+      saveSession({ memberId: completeResult.memberId, memberName: completeResult.memberName, isAdmin: completeResult.isAdmin, identityToken: completeResult.identityToken });
       rememberPhone(currentPhone);
       // يُسجَّل العلم المحلي الآن — المرة القادمة التي يفتح فيها هذا الجهاز صفحة الدخول سيظهر زر
       // البصمة على الشاشة الرئيسية بجانب رقم الجوال مباشرة

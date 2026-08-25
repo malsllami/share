@@ -1,5 +1,6 @@
 // لوحة المدير — الإعدادات، الأعضاء، الجمعيات (اشتراكات/أشهر/رغبات)، والأرشيف
 import { callApi } from '../services/api.js';
+import { getIdentityToken } from '../services/auth.js';
 import { renderAppHeader, wireHeaderEvents } from '../components/Header.js';
 import { openModal, closeModal } from '../components/Modal.js';
 import { showToast } from '../components/Toast.js';
@@ -240,6 +241,7 @@ async function showSettingsTab(content, isStale) {
         defaultDuration: content.querySelector('#s-duration').value,
         defaultShareValue: content.querySelector('#s-share').value,
         adminPhone: adminPhone,
+        identityToken: getIdentityToken(),
       });
       showToast('تم حفظ الإعدادات', 'success');
     } catch (err) {
@@ -258,6 +260,7 @@ async function showSettingsTab(content, isStale) {
         defaultShareValue: s.defaultShareValue,
         collectionMessage: content.querySelector('#s-msg-collection').value,
         deliveryMessage: content.querySelector('#s-msg-delivery').value,
+        identityToken: getIdentityToken(),
       });
       showToast('تم حفظ نصوص الرسائل', 'success');
     } catch (err) {
@@ -297,7 +300,7 @@ async function showMembersTab(content, isStale) {
       '<td><button class="btn btn-outline btn-sm toggle-status-btn">' + (m.status === 'نشط' ? 'إيقاف' : 'تفعيل') + '</button></td>';
     const toggleBtn = tr.querySelector('.toggle-status-btn');
     toggleBtn.addEventListener('click', withButtonLoading(toggleBtn, async () => {
-      await callApi('setMemberStatus', { memberId: m.id, status: m.status === 'نشط' ? 'موقوف' : 'نشط' });
+      await callApi('setMemberStatus', { memberId: m.id, status: m.status === 'نشط' ? 'موقوف' : 'نشط', identityToken: getIdentityToken() });
       showMembersTab(content);
     }));
     body.appendChild(tr);
@@ -324,7 +327,7 @@ function openAddMemberModal(onDone) {
         const phone = buildFullPhone(modal.querySelector('#m-phone').value);
         if (!phone) { errEl.textContent = 'رقم الجوال غير صالح — 9 أرقام تبدأ بـ5'; errEl.classList.remove('hidden'); return; }
         try {
-          await callApi('addMember', { name: modal.querySelector('#m-name').value, phone });
+          await callApi('addMember', { name: modal.querySelector('#m-name').value, phone, identityToken: getIdentityToken() });
           closeModal();
           showToast('تمت إضافة العضو', 'success');
           onDone();

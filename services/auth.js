@@ -1,8 +1,15 @@
 // إدارة جلسة الدخول الحالية — تُحفظ في sessionStorage (تنتهي بإغلاق التبويب، تحمي من بقاء الجلسة على جهاز مشترك)
 const SESSION_KEY = 'sahm_session';
 
-export function saveSession({ memberId, memberName, isAdmin }) {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ memberId, memberName, isAdmin: !!isAdmin }));
+export function saveSession({ memberId, memberName, isAdmin, identityToken }) {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ memberId, memberName, isAdmin: !!isAdmin, identityToken }));
+}
+
+// تذكرة الهوية الموقّعة من الخادم — تُرسَل مع أي إجراء إداري (انظر gas/Identity.gs) بدل الاعتماد
+// على isAdmin وحده (الذي لا يعدو كونه تزييناً للواجهة، لا يثبت شيئاً للخادم بمفرده)
+export function getIdentityToken() {
+  const s = getSession();
+  return s ? s.identityToken : null;
 }
 
 export function getSession() {
