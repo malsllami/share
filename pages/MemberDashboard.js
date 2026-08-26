@@ -15,8 +15,23 @@ import { registerDeviceCredential, isWebAuthnSupported, describeWebAuthnError } 
 import { markDeviceBiometricLinked, deviceHasBiometricLinked } from '../services/auth.js';
 import { guessDeviceName, guessBiometricKind, BIOMETRIC_META } from '../utils/deviceBiometric.js';
 import { RP_ID, RP_NAME } from '../config/config.js';
+import { renderDonutHtml } from '../components/Charts.js';
+import { ICONS } from '../utils/icons.js';
 
 const STATUS_LABEL = { 'جديدة': 'جديدة', 'نشطة': 'نشطة', 'منتهية': 'منتهية' };
+
+// بطاقة مؤشر متدرّجة — نفس النمط المستخدَم بلوحة المدير (AdminDashboard.js:statCard) بالضبط، حرفياً
+// لضمان هوية بصرية موحَّدة بين اللوحتين. مكرَّرة محلياً هنا (بدل استيراد من ملف الآخر) بنفس أسلوب
+// بقية الدوال المساعدة الخاصة بكل صفحة في هذا المشروع.
+function statCard(color, iconSvg, value, label, compactValue) {
+  return (
+    '<div class="stat-card ' + color + '">' +
+      '<div style="color:#fff;opacity:.85">' + iconSvg + '</div>' +
+      '<div class="n" style="margin-top:8px' + (compactValue ? ';font-size:15px' : '') + '">' + value + '</div>' +
+      '<div class="l">' + label + '</div>' +
+    '</div>'
+  );
+}
 
 export async function renderMemberDashboard(root, { session, onLogout }) {
   root.innerHTML = renderAppHeader({ memberName: session.memberName, isAdmin: false }) +
@@ -25,6 +40,70 @@ export async function renderMemberDashboard(root, { session, onLogout }) {
 
   const content = root.querySelector('#member-content');
   await renderMemberAssociationsView(content, session);
+}
+
+// بطاقة "تقدّم جمعيتي النشطة" — شريط تقدّم زمني + الأشهر المتبقية + الأيام المتبقية في بطاقة واحدة،
+// نفس نمط buildProgressCardHtml بلوحة المدير (AdminDashboard.js) بالضبط لكن لجمعية العضو نفسه فقط
+function buildMyProgressCardHtml(activeAssoc, prog) {
+  if (!activeAssoc) {
+    return '<div class="card"><div class="card-title">' + ICONS.target + ' تقدّم جمعيتي النشطة</div><p class="table-empty">لا توجد جمعية نشطة لي حالياً</p></div>';
+  }
+  return (
+    '<div class="card">' +
+      '<div class="card-title">' + ICONS.target + ' تقدّم ' + activeAssoc.name + '</div>' +
+      '<div class="progress-wrap primary">' + renderProgressBarHtml(prog.percent) +
+        '<div class="progress-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' من ' + formatNumber(activeAssoc.duration) + ' شهر</span><span>' + prog.percent + '٪</span></div>' +
+      '</div>' +
+      '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">الأشهر المتبقية</div><div class="assoc-meta-val">' + formatNumber(prog.remainingMonths) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">الأيام المتبقية</div><div class="assoc-meta-val">' + formatNumber(prog.remainingDays) + '</div></div>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+// بطاقة "رغباتي واستحقاقي" — طُلبت صراحةً من محمد: كل شهر استلام اخترته + عدد الأيام المتبقية على
+// الاستحقاق، بتلوين محدَّد: أخضر = تم الاستلام فعلاً، أزرق = أقل من 30 يوماً متبقياً،
+// برتقالي = 30 يوماً فأكثر متبقياً — نظام ألوان مختلف عمداً عن بطاقة "أشهر استلامي المحدَّدة"
+// الأقدم (أحمر/ذهبي/محايد) المستخدَمة داخل تفصيل الجمعية؛ الاثنتان تتعايشان لغرضين مختلفين
+function buildMyEntitlementCardHtml(activeAssoc, deliveryRows, monthDateByNum) {
+  if (!deliveryRows || deliveryRows.length === 0) {
+    return (
+      '<div class="card mt-16"><div class="card-title">' + ICONS.target + ' رغباتي واستحقاقي</div>' +
+      '<p class="table-empty">لم تحدّد شهر استلام بعد في ' + activeAssoc.name + '</p></div>'
+    );
+  }
+  const rows = deliveryRows.slice().sort((a, b) => a.monthNum - b.monthNum).map(r => {
+    let state, countdownClass, countdownText;
+    if (r.delivered) {
+      state = 'state-done'; countdownClass = 'done';
+      countdownText = 'تم الاستلام' + (r.confirmDate ? ' — ' + new Date(r.confirmDate).toLocaleDateString('en-GB') : '');
+    } else {
+      const d = daysUntil(monthDateByNum.get(Number(r.monthNum)));
+      if (d === null || d < 30) {
+        state = 'state-soon-blue'; countdownClass = 'soon-blue';
+        countdownText = (d === null || d <= 0) ? 'مستحق الآن' : 'خلال ' + formatNumber(d) + ' يوم';
+      } else {
+        state = 'state-far-orange'; countdownClass = 'far-orange';
+        countdownText = 'خلال ' + formatNumber(d) + ' يوم';
+      }
+    }
+    return (
+      '<div class="mpc-delivery-row ' + state + '">' +
+        '<div class="mpc-delivery-month">' + formatNumber(r.monthNum) + '</div>' +
+        '<div class="mpc-delivery-info">' +
+          '<div class="mpc-delivery-shares">' + formatNumber(r.sharesCount) + ' سهم</div>' +
+          '<div class="mpc-delivery-value">' + formatCurrency(r.deliveryValue) + '</div>' +
+        '</div>' +
+        '<div class="mpc-delivery-countdown ' + countdownClass + '">' + countdownText + '</div>' +
+      '</div>'
+    );
+  }).join('');
+  return (
+    '<div class="card mt-16"><div class="card-title">' + ICONS.target + ' رغباتي واستحقاقي — ' + activeAssoc.name + '</div>' +
+      '<div class="mpc-delivery-list">' + rows + '</div>' +
+    '</div>'
+  );
 }
 
 // بطاقة تنقّل قابلة للنقر (Hub → Detail) — عنوان + محتوى مختصر اختياري + سهم يشير لوجود المزيد
@@ -81,6 +160,28 @@ export async function renderMemberAssociationsView(content, session, isStale) {
   const activeOnly = mine.filter(a => a.status === 'نشطة');
   const totalShares = activeOnly.reduce((s, a) => s + Number(a.sub.sharesCount), 0);
   const totalEntitlement = activeOnly.reduce((s, a) => s + Number(a.sub.sharesCount) * a.shareValue * a.duration, 0);
+  // جمعية نشطة واحدة كحد أقصى عملياً (نفس افتراض لوحة المدير — انظر تسلسل الحالات في gas/MonthClosing.gs)
+  const activeAssoc = activeOnly[0] || null;
+
+  // بيانات إضافية خفيفة خاصة بجمعيتي النشطة فقط (إن وُجدت) — نفس نمط 4 نداءات متزامنة الناجح أصلاً
+  // في showAssociationDetail أدناه (وليس إضافة عشوائية فوق نداء ثقيل كما حدث سابقاً بلوحة المدير)
+  let activeMonths = [], activeCollectionRows = [], activeDeliveryRows = [];
+  if (activeAssoc) {
+    try {
+      [activeMonths, activeCollectionRows, activeDeliveryRows] = await Promise.all([
+        callApi('getMonths', { assocId: activeAssoc.id }),
+        callApi('getMemberCollectionRows', { assocId: activeAssoc.id, memberId: session.memberId }),
+        callApi('getMemberDeliveryRows', { assocId: activeAssoc.id, memberId: session.memberId }),
+      ]);
+    } catch (err) { /* بيانات تكميلية — فشلها لا يمنع عرض بقية اللوحة */ }
+    if (isStale && isStale()) return;
+  }
+  const activeMonthDateByNum = new Map(activeMonths.map(m => [Number(m.monthNum), m.date]));
+  const activeProg = activeAssoc ? computeDurationProgress(activeAssoc.startDate, activeAssoc.endDate, activeAssoc.duration) : null;
+  const activeEntitlement = activeAssoc ? Number(activeAssoc.sub.sharesCount) * activeAssoc.shareValue * activeAssoc.duration : 0;
+  const paidSoFar = activeCollectionRows.filter(r => r.collected).reduce((s, r) => s + Number(r.sharesValue), 0);
+  const remainingToPay = Math.max(0, activeEntitlement - paidSoFar);
+
   const profileHtml =
     '<div class="mpc-block">' +
       '<div class="mpc-header">' +
@@ -99,6 +200,39 @@ export async function renderMemberAssociationsView(content, session, isStale) {
         (me && me.notes ? '<div class="member-note-banner">ملاحظة من المدير: ' + me.notes + '</div>' : '') +
       '</div>' +
     '</div>';
+
+  // ── مؤشراتي — نفس نمط "المؤشرات العامة" بلوحة المدير بالضبط (بطاقات متدرّجة بعمودين ثابتين)،
+  // لكن كل الأرقام هنا خاصة بالعضو نفسه فقط في جمعيته النشطة، لا أي بيانات عن أعضاء آخرين ──
+  const kpiSectionHtml = !activeAssoc ? '' : (
+    '<div class="section-title">مؤشراتي — ' + activeAssoc.name + '</div>' +
+    '<div class="grid-2-fixed" style="margin-bottom:14px">' +
+      statCard('orange', ICONS.target, activeProg.percent + '٪', 'تقدّم الجمعية النشطة') +
+      buildMyProgressCardHtml(activeAssoc, activeProg) +
+    '</div>' +
+    '<div class="grid-2-fixed" style="margin-bottom:14px">' +
+      statCard('blue', ICONS.wallet, formatNumber(activeAssoc.sub.sharesCount), 'أسهمي في الجمعية النشطة') +
+      statCard('green', ICONS.target, formatCurrency(activeEntitlement), 'إجمالي استحقاقي') +
+    '</div>' +
+    '<div class="grid-2-fixed" style="margin-bottom:18px">' +
+      statCard('purple', ICONS.people, formatCurrency(paidSoFar), 'المدفوع حتى الآن') +
+      statCard('gold', ICONS.building, formatCurrency(remainingToPay), 'المتبقي عليّ') +
+    '</div>'
+  );
+
+  // ── توزيع استحقاقي على الأشهر — حلقة توزيع من رغباتي الفعلية في الجمعية النشطة فقط ──
+  const donutSectionHtml = !activeAssoc || activeDeliveryRows.length === 0 ? '' : (function () {
+    const colors = ['var(--kpi-blue-1)', 'var(--kpi-green-1)', 'var(--kpi-purple-1)', 'var(--kpi-orange-1)', 'var(--kpi-gold-1)', 'var(--indigo-l)'];
+    const segments = activeDeliveryRows.map((r, i) => ({ label: 'الشهر ' + formatNumber(r.monthNum), value: Number(r.deliveryValue) || 0, color: colors[i % colors.length] }));
+    return (
+      '<div class="card mt-16"><div class="card-title">' + ICONS.donut + ' توزيع استحقاقي على الأشهر</div>' +
+        renderDonutHtml(segments, formatNumber(activeDeliveryRows.length), 'أشهر محدَّدة للاستلام') +
+      '</div>'
+    );
+  })();
+
+  // ── بطاقة "رغباتي واستحقاقي" — طُلبت صراحةً: كل شهر اخترته + عدد الأيام المتبقية على الاستحقاق،
+  // ملوَّنة: أخضر = تم الاستلام فعلاً، أزرق = أقل من 30 يوماً متبقياً، برتقالي = 30 يوماً فأكثر ──
+  const entitlementCardHtml = !activeAssoc ? '' : buildMyEntitlementCardHtml(activeAssoc, activeDeliveryRows, activeMonthDateByNum);
 
   const availableSectionHtml = available.length
     ? '<div class="section-title">جمعيات متاحة للاشتراك</div><div class="grid grid-2" id="available-assoc-list"></div>'
@@ -137,7 +271,7 @@ export async function renderMemberAssociationsView(content, session, isStale) {
     return;
   }
 
-  content.innerHTML = profileHtml + bioCardHtml + devicesCardHtml +
+  content.innerHTML = profileHtml + kpiSectionHtml + donutSectionHtml + entitlementCardHtml + bioCardHtml + devicesCardHtml +
     '<div class="section-title">جمعياتي</div>' +
     '<div class="grid grid-2" id="assoc-list"></div>' +
     availableSectionHtml;

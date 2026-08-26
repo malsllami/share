@@ -347,6 +347,13 @@
 .mpc-delivery-countdown.urgent { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
 .mpc-delivery-countdown.soon { color: var(--gold-d); background: var(--gold-soft); border-color: transparent; }
 .mpc-delivery-countdown.done { color: var(--success); background: var(--success-soft); border-color: transparent; }
+/* بطاقة "رغباتي واستحقاقي" بلوحة العضو — نظام ألوان مختلف صراحةً بقرار محمد: أخضر=تم الاستلام،
+   أزرق=أقل من 30 يوماً متبقياً، برتقالي=30 يوماً فأكثر متبقياً (بدل الأحمر/الذهبي/المحايد المستخدَمة
+   في بطاقة "أشهر استلامي المحدَّدة" الأقدم — الاثنتان تتعايشان لغرضين مختلفين) */
+.mpc-delivery-row.state-soon-blue .mpc-delivery-month { background: linear-gradient(135deg, #1e3a8a, var(--indigo-l)); }
+.mpc-delivery-row.state-far-orange .mpc-delivery-month { background: linear-gradient(135deg, #9a3412, var(--orange)); }
+.mpc-delivery-countdown.soon-blue { color: #1e3a8a; background: var(--indigo-soft); border-color: transparent; }
+.mpc-delivery-countdown.far-orange { color: var(--orange); background: rgba(242,121,46,0.14); border-color: transparent; }
 
 /* ═══════════════════ حلقة توزيع (Donut) — CSS محض عبر conic-gradient، بلا أي مكتبة رسوم ═══════════════════ */
 .donut-wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
