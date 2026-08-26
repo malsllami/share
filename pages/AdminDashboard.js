@@ -122,7 +122,7 @@ async function openSubscribedMembersModal(assoc, members) {
 // من تبويب "إدارة الجمعيات" العادي بلا أي تغيير
 function buildTwoAssocCardsHtml(activeAssoc, freshAssoc, activeSummary) {
   const activeCard = activeAssoc ? (
-    '<div class="card">' +
+    '<div class="card" style="border-top:4px solid var(--success)">' +
       '<div class="flex-between">' +
         '<div class="card-title" style="margin:0">' + activeAssoc.name + '</div>' +
         '<div class="flex-between" style="gap:8px">' +
@@ -146,7 +146,7 @@ function buildTwoAssocCardsHtml(activeAssoc, freshAssoc, activeSummary) {
   ) : '<div class="card"><div class="card-title">الجمعية النشطة</div><p class="table-empty">لا توجد جمعية نشطة حالياً</p></div>';
 
   const freshCard = freshAssoc ? (
-    '<div class="card">' +
+    '<div class="card" style="border-top:4px solid var(--gold)">' +
       '<div class="flex-between"><div class="card-title" style="margin:0">' + freshAssoc.name + '</div><span class="badge badge-gold">جديدة</span></div>' +
       '<div class="assoc-meta mt-16">' +
         '<div class="assoc-meta-item"><div class="assoc-meta-label">المشتركون</div><div class="assoc-meta-val">' + formatNumber(freshAssoc.memberCount) + '</div></div>' +
@@ -188,22 +188,15 @@ async function showOverviewTab(content, activate, session, isStale) {
   }
   if (isStale && isStale()) return;
 
-  const { associations, members, summaryByAssoc } = bundle;
+  // monthTotals/confirmSummary/activity كلها الآن جزء من نفس حزمة getOverviewBundle (رحلة شبكة
+  // واحدة فقط) بدل 3 رحلات إضافية متزامنة كانت السبب المباشر في تأخير فتح "نظرة عامة" لدقائق —
+  // انظر gas/Associations.gs
+  const { associations, members, summaryByAssoc, monthTotals, confirmSummary, activity } = bundle;
   const activeAssociations = associations.filter(a => a.status !== 'منتهية');
   const activeMembers = members.filter(m => m.status === 'نشط');
   const activeAssoc = associations.find(a => a.status === 'نشطة') || null;
   const freshAssoc = associations.find(a => a.status === 'جديدة') || null;
   const activeSummary = activeAssoc ? summaryByAssoc[activeAssoc.id] : null;
-
-  let activity = [], monthTotals = [], confirmSummary = {};
-  try {
-    [activity, monthTotals, confirmSummary] = await Promise.all([
-      callApi('getRecentActivity').catch(() => []),
-      activeAssoc ? callApi('getMonthsWithTotals', { assocId: activeAssoc.id }) : Promise.resolve([]),
-      activeAssoc ? callApi('getMonthsConfirmationSummary', { assocId: activeAssoc.id }) : Promise.resolve({}),
-    ]);
-  } catch (err) { /* الرسوم/الأنشطة تكميلية — فشلها لا يمنع عرض بقية اللوحة */ }
-  if (isStale && isStale()) return;
 
   const combinedExpected = activeSummary ? activeSummary.collectionExpected + activeSummary.deliveryExpected : 0;
   const combinedDone = activeSummary ? activeSummary.collectionDone + activeSummary.deliveryDone : 0;
@@ -239,7 +232,9 @@ async function showOverviewTab(content, activate, session, isStale) {
 
     // ٢) رسمان بيانيان — توزيع الرغبات (دائري) وأداء التحصيل/التسليم (خطي)
     '<div class="grid grid-2" style="margin-bottom:18px">' +
-      '<div class="card"><div class="card-title">' + ICONS.donut + ' توزيع الرغبات على الأشهر</div>' + donutHtml + '</div>' +
+      '<div class="card"><div class="card-title">' + ICONS.donut + ' توزيع الرغبات على الأشهر</div>' +
+        '<p class="form-hint" style="margin:-8px 0 12px">القيمة لكل شهر = إجمالي مبلغ الاستلام الكامل للأعضاء المختارين لهذا الشهر (وليس تحصيل الشهر نفسه فقط) — لذا تختلف الأرقام غالباً عن مبلغ التحصيل الشهري العادي</p>' +
+        donutHtml + '</div>' +
       '<div class="card"><div class="card-title">' + ICONS.chart + ' أداء التحصيل والتسليم</div>' + lineHtml + '</div>' +
     '</div>' +
 
