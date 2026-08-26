@@ -42,14 +42,14 @@ const TABS = [
 let activeTabToken_ = 0;
 
 export async function renderAdminDashboard(root, { session, onLogout }) {
+  // لا شريط جانبي ولا علوي بديل على أي حجم شاشة (بقرار محمد الصريح) — #admin-tabs يبقى مخفياً دائماً
+  // (انظر styles/base.css)، والتنقّل الفعلي الوحيد هو الشريط السفلي الثابت (.bottom-nav) على كل الأحجام
   root.innerHTML = renderAppHeader({ memberName: session.memberName, isAdmin: true }) +
-    '<div class="container" style="padding-top:22px">' +
-      '<div class="admin-shell">' +
-        '<div class="tabs" id="admin-tabs"></div>' +
-        '<div id="admin-content" class="admin-main"></div>' +
-      '</div>' +
+    '<div class="container admin-page-container" style="padding-top:22px">' +
+      '<div class="tabs" id="admin-tabs"></div>' +
+      '<div id="admin-content"></div>' +
     '</div>' +
-    renderBottomNavHtml(); // يظهر فقط على الجوال (عبر CSS) — طابع تطبيق جوال حقيقي بشريط تنقّل ثابت
+    renderBottomNavHtml();
   wireHeaderEvents(root, onLogout);
 
   const tabsEl = root.querySelector('#admin-tabs');
@@ -85,6 +85,38 @@ function statCard(color, iconSvg, value, label, compactValue) {
       '<div style="color:#fff;opacity:.85">' + iconSvg + '</div>' +
       '<div class="n" style="margin-top:8px' + (compactValue ? ';font-size:15px' : '') + '">' + value + '</div>' +
       '<div class="l">' + label + '</div>' +
+    '</div>'
+  );
+}
+
+// نسخة مصغَّرة من statCard — بلا أيقونة كبيرة، لعرض بطاقتين جنباً إلى جنب داخل خانة واحدة بالصف
+// (بطاقتا "نشطة"/"جديدة" معاً بجانب بعضهما بدل بطاقة واحدة مدمَجة كانتا فيها بلا تمييز لوني حقيقي)
+function miniStatCard(color, value, label) {
+  return (
+    '<div class="stat-card ' + color + '" style="padding:14px">' +
+      '<div class="n" style="font-size:19px">' + value + '</div>' +
+      '<div class="l">' + label + '</div>' +
+    '</div>'
+  );
+}
+
+// بطاقة "تقدّم الجمعية النشطة" — شريط تقدّم زمني + الأشهر المتبقية + الأيام المتبقية، كلها مجمَّعة
+// في بطاقة واحدة بدل تفرّقها بين أماكن مختلفة، من computeDurationProgress الموجودة أصلاً
+function buildProgressCardHtml(activeAssoc) {
+  if (!activeAssoc) {
+    return '<div class="card"><div class="card-title">' + ICONS.target + ' تقدّم الجمعية النشطة</div><p class="table-empty">لا توجد جمعية نشطة حالياً</p></div>';
+  }
+  const prog = computeDurationProgress(activeAssoc.startDate, activeAssoc.endDate, activeAssoc.duration);
+  return (
+    '<div class="card">' +
+      '<div class="card-title">' + ICONS.target + ' تقدّم ' + activeAssoc.name + '</div>' +
+      '<div class="progress-wrap primary">' + renderProgressBarHtml(prog.percent) +
+        '<div class="progress-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' من ' + formatNumber(activeAssoc.duration) + ' شهر</span><span>' + prog.percent + '٪</span></div>' +
+      '</div>' +
+      '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">الأشهر المتبقية</div><div class="assoc-meta-val">' + formatNumber(prog.remainingMonths) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">الأيام المتبقية</div><div class="assoc-meta-val">' + formatNumber(prog.remainingDays) + '</div></div>' +
+      '</div>' +
     '</div>'
   );
 }
@@ -220,14 +252,24 @@ async function showOverviewTab(content, activate, session, isStale) {
   ], lineLabels) : '<p class="table-empty">لا يوجد أداء لعرضه بعد</p>';
 
   content.innerHTML =
-    // ١) صف مؤشرات KPI متدرّجة — بدل بطاقات "مكدَّسة" بيضاء/سوداء بلا تمييز
+    // ١) صف مؤشرات KPI — مرتَّبة كما طلب محمد بالضبط: الالتزام + التقدّم أعلى الصفحة، ثم صف
+    // الجمعيات/الأعضاء، ثم صف التحصيل/التسليم. "نشطة"/"جديدة" الآن بطاقتان منفصلتان بلونين مختلفين
+    // فعلياً (أخضر/ذهبي — نفس ألوان شارات نشطة/جديدة المستخدَمة في كل الموقع) بدل بطاقة مدمَجة واحدة
     '<div class="section-title">المؤشرات العامة</div>' +
-    '<div class="grid grid-3" style="margin-bottom:18px">' +
+    '<div class="grid grid-2" style="margin-bottom:14px">' +
+      statCard('orange', ICONS.target, commitmentPercent + '٪', 'مستوى الالتزام — الجمعية النشطة') +
+      buildProgressCardHtml(activeAssoc) +
+    '</div>' +
+    '<div class="grid grid-2" style="margin-bottom:14px">' +
+      '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">' +
+        miniStatCard('green', formatNumber(activeAssociations.filter(a => a.status === 'نشطة').length), 'جمعية نشطة') +
+        miniStatCard('gold', formatNumber(activeAssociations.filter(a => a.status === 'جديدة').length), 'جمعية جديدة') +
+      '</div>' +
       statCard('blue', ICONS.people, formatNumber(activeMembers.length), 'الأعضاء النشطون') +
+    '</div>' +
+    '<div class="grid grid-2" style="margin-bottom:18px">' +
       statCard('green', ICONS.wallet, formatCurrency(activeSummary ? activeSummary.collectionDone : 0), 'إجمالي التحصيل — الجمعية النشطة') +
       statCard('purple', ICONS.handoff, formatCurrency(activeSummary ? activeSummary.deliveryDone : 0), 'إجمالي التسليم — الجمعية النشطة') +
-      statCard('gold', ICONS.building, formatNumber(activeAssociations.filter(a => a.status === 'نشطة').length) + ' نشطة  ·  ' + formatNumber(activeAssociations.filter(a => a.status === 'جديدة').length) + ' جديدة', 'الجمعيات الجارية', true) +
-      statCard('orange', ICONS.target, commitmentPercent + '٪', 'مستوى الالتزام — الجمعية النشطة') +
     '</div>' +
 
     // ٢) رسمان بيانيان — توزيع الرغبات (دائري) وأداء التحصيل/التسليم (خطي)

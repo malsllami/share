@@ -191,19 +191,21 @@
 .dual-date { font-size: 11.5px; color: var(--text-3); }
 .dual-date .h { color: var(--gold-d); font-weight: 700; }
 
-/* ═══════════════════ تنقّل سفلي ثابت (جوال فقط) — لطابع تطبيق جوال حقيقي بلوحة المدير ═══════════════════ */
+/* ═══════════════════ تنقّل سفلي ثابت — بلوحة المدير على كل أحجام الشاشات بلا استثناء (بقرار محمد
+   الصريح: لا شريط جانبي أو علوي بديل على الشاشات الواسعة، نفس هذا الشريط دائماً) ═══════════════════ */
 .bottom-nav {
-  display: none; /* يظهر فقط ضمن الاستعلام أدناه على الجوال */
+  display: flex;
   position: fixed; bottom: 0; right: 0; left: 0; z-index: 150;
   background: var(--header-bg); border-top: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
   padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
 }
-@media (max-width: 640px) {
-  .bottom-nav { display: flex; }
-  /* تفادي إخفاء آخر عنصر بالصفحة خلف الشريط الثابت — قيمة سخية مع مراعاة حافة الشاشة السفلية
-     (الأجهزة ذات مؤشر الهوم بلا أزرار) بدل رقم ثابت وحيد قد لا يكفي على كل الأجهزة */
-  .container { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+/* تفادي إخفاء آخر عنصر بالصفحة خلف الشريط الثابت — مُطبَّقة على حاوية صفحة المدير تحديداً (وليس كل
+   .container في الموقع) حتى لا تُضيف فراغاً سفلياً غير مرغوب بلوحة العضو التي لا تملك هذا الشريط */
+.admin-page-container { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+/* على الشاشات الأوسع من الجوال: شريط بعرض محدود متمركز أسفل الصفحة بدل تمدّده الكامل بلا داعٍ */
+@media (min-width: 641px) {
+  .bottom-nav { right: 50%; left: auto; transform: translateX(50%); max-width: 480px; border-radius: var(--radius) var(--radius) 0 0; border-inline: 1px solid rgba(255,255,255,0.08); }
 }
 .bottom-nav-item {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
@@ -366,23 +368,6 @@
 .linechart-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); font-weight: 600; }
 .linechart-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 
-/* ═══════════════════ شريط جانبي لتبويبات لوحة المدير (الشاشات الأوسع من الجوال فقط) ═══════════════════
-   إعادة تصميم بصري محض لنفس شريط #admin-tabs الأفقي الحالي — بلا أي تغيير على منطق التنقّل/التفعيل
-   في AdminDashboard.js، فقط تحويل شكله لعمود جانبي بأيقونات، والجوال يبقى كما هو (.bottom-nav) */
-@media (min-width: 641px) {
-  .admin-shell { display: flex; align-items: flex-start; gap: 20px; }
-  .admin-shell #admin-tabs {
-    flex-direction: column; align-items: stretch; width: 208px; flex-shrink: 0;
-    padding: 14px 10px; gap: 3px; background: var(--surface); border: 1px solid var(--border);
-  }
-  .admin-shell #admin-tabs .tab-btn {
-    display: flex; align-items: center; gap: 10px; justify-content: flex-start;
-    padding: 11px 14px; border-radius: var(--radius-sm); text-align: right;
-  }
-  .admin-shell #admin-tabs .tab-btn .tab-btn-icon { display: flex; flex-shrink: 0; }
-  .admin-shell #admin-tabs .tab-btn .icon-svg { width: 17px; height: 17px; flex-shrink: 0; }
-  .admin-shell .admin-main { flex: 1; min-width: 0; }
-}
 
 /* ═══════════════════ ملاحظة المدير على بطاقة عضو — قراءة فقط، تذكير يدوي، لا تدخل في أي حساب ═══════════════════ */
 .member-note-banner {
