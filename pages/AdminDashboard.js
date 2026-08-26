@@ -185,7 +185,7 @@ function buildTwoAssocCardsHtml(activeAssoc, freshAssoc, activeSummary) {
       '<button class="btn btn-gold btn-sm" id="ov-create-fresh-btn">+ إنشاء جمعية جديدة</button></div>'
   );
 
-  return '<div class="section-title">نظرة على الجمعيتين</div><div class="grid grid-2" style="margin-bottom:18px">' + activeCard + freshCard + '</div>';
+  return '<div class="section-title">نظرة على الجمعيتين</div><div class="grid-2-fixed" style="margin-bottom:18px">' + activeCard + freshCard + '</div>';
 }
 
 function renderActivityFeedHtml(activity) {
@@ -248,24 +248,29 @@ async function showOverviewTab(content, activate, session, isStale) {
     // الجمعيات/الأعضاء، ثم صف التحصيل/التسليم. "نشطة"/"جديدة" الآن بطاقتان منفصلتان بلونين مختلفين
     // فعلياً (أخضر/ذهبي — نفس ألوان شارات نشطة/جديدة المستخدَمة في كل الموقع) بدل بطاقة مدمَجة واحدة
     '<div class="section-title">المؤشرات العامة</div>' +
-    '<div class="grid grid-2" style="margin-bottom:14px">' +
+    // ملاحظة مهمة: هذه الصفوف الأربعة تحمل بطاقتين ثابتتين بالضبط دائماً — استُخدم grid-2-fixed
+    // (عمودان صريحان) بدل class="grid grid-2" (المصمَّمة لمعارض بطاقات بعدد متغيّر عبر auto-fill)
+    // لأن auto-fill على شاشة عريضة يحجز أعمدة فارغة إضافية غير مستخدَمة، فتنحشر البطاقتان الفعليتان
+    // في جهة واحدة (يمين الصفحة في RTL) ويبقى الجزء الآخر فارغاً تماماً — خلل ظهر فقط على الشاشات
+    // الواسعة (الجوال يخفيه صدفةً لأن auto-fill ينهار لعمود واحد أصلاً هناك)
+    '<div class="grid-2-fixed" style="margin-bottom:14px">' +
       statCard('orange', ICONS.target, commitmentPercent + '٪', 'مستوى الالتزام — الجمعية النشطة') +
       buildProgressCardHtml(activeAssoc) +
     '</div>' +
-    '<div class="grid grid-2" style="margin-bottom:14px">' +
+    '<div class="grid-2-fixed" style="margin-bottom:14px">' +
       '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">' +
         miniStatCard('green', formatNumber(activeAssociations.filter(a => a.status === 'نشطة').length), 'جمعية نشطة') +
         miniStatCard('gold', formatNumber(activeAssociations.filter(a => a.status === 'جديدة').length), 'جمعية جديدة') +
       '</div>' +
       statCard('blue', ICONS.people, formatNumber(activeMembers.length), 'الأعضاء النشطون') +
     '</div>' +
-    '<div class="grid grid-2" style="margin-bottom:18px">' +
+    '<div class="grid-2-fixed" style="margin-bottom:18px">' +
       statCard('green', ICONS.wallet, formatCurrency(activeSummary ? activeSummary.collectionDone : 0), 'إجمالي التحصيل — الجمعية النشطة') +
       statCard('purple', ICONS.handoff, formatCurrency(activeSummary ? activeSummary.deliveryDone : 0), 'إجمالي التسليم — الجمعية النشطة') +
     '</div>' +
 
     // ٢) رسمان بيانيان — توزيع الرغبات (دائري) وأداء التحصيل/التسليم (خطي)
-    '<div class="grid grid-2" style="margin-bottom:18px">' +
+    '<div class="grid-2-fixed" style="margin-bottom:18px">' +
       '<div class="card"><div class="card-title">' + ICONS.donut + ' توزيع الرغبات على الأشهر</div>' +
         '<p class="form-hint" style="margin:-8px 0 12px">القيمة لكل شهر = إجمالي مبلغ الاستلام الكامل للأعضاء المختارين لهذا الشهر (وليس تحصيل الشهر نفسه فقط) — لذا تختلف الأرقام غالباً عن مبلغ التحصيل الشهري العادي</p>' +
         donutHtml + '</div>' +

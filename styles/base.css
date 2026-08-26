@@ -101,6 +101,14 @@ a { color: inherit; }
 .grid { display: grid; gap: 14px; }
 .grid-2 { grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); }
 .grid-3 { grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); }
+/* شبكة بعمودين ثابتين بالضبط (وليس معرضاً بعدد بطاقات متغيّر) — عمود واحد على الجوال الضيّق، عمودان
+   متساويان من هذا العرض فصاعداً. بخلاف .grid-2 (auto-fill): لا تترك أعمدة فارغة محجوزة على الشاشات
+   الواسعة عندما يكون عدد البطاقات الفعلي أقل مما يتّسع بعرض الشاشة (كان هذا يحشر بطاقتين في جهة واحدة
+   من الصفحة على الشاشات العريضة ويترك الجهة الأخرى فارغة تماماً بسبب اتجاه RTL) */
+.grid-2-fixed { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 481px) {
+  .grid-2-fixed { grid-template-columns: 1fr 1fr; }
+}
 
 .stat-card { border-radius: var(--radius-sm); padding: 16px; background: var(--surface-2); border: 1px solid var(--border); }
 .stat-card .n { font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 800; color: var(--gold); }
