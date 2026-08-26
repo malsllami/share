@@ -254,45 +254,28 @@ export async function renderMemberAssociationsView(content, session, isStale) {
     ? '<div class="section-title">جمعيات متاحة للاشتراك</div><div class="grid grid-2" id="available-assoc-list"></div>'
     : '';
 
-  // ── بطاقة ربط بصمة هذا الجهاز — تتيح ربط/تأكيد البصمة من داخل اللوحة مباشرة بعد الدخول، بلا
-  // حاجة لتسجيل خروج والمرور بخطوة الجوال لإتاحتها (كانت الطريقة الوحيدة سابقاً). لا تظهر إطلاقاً
-  // إن كان هذا المتصفح لا يدعم WebAuthn أصلاً — لا معنى لعرض خيار سيفشل حتماً
-  const bioKind = guessBiometricKind();
-  const bioMeta = BIOMETRIC_META[bioKind];
-  const bioLinked = deviceHasBiometricLinked();
-  const bioCardHtml = isWebAuthnSupported()
-    ? '<div class="card nav-card mt-16 accent-gold" id="bio-link-card">' +
-        '<div class="flex-between">' +
-          '<div class="nav-card-title">' + bioMeta.icon + ' ' + (bioLinked ? 'بصمة هذا الجهاز مرتبطة' : bioMeta.link) + '</div>' +
-          (bioLinked ? '<span class="badge badge-success">✓</span>' : '<span class="nav-card-chevron">‹</span>') +
-        '</div>' +
-        (bioLinked ? '' : '<p class="form-hint mt-16" style="margin:8px 0 0">دخول أسرع من المرة القادمة بلا حاجة لإدخال رقم الجوال</p>') +
-      '</div>'
-    : '';
-
-  // ── بطاقة "أجهزتي" — سرد كل بصمات الأجهزة المرتبطة بحساب العضو (من أي جهاز رَبَطها، لا هذا
-  // المتصفح فقط) مع إمكانية إلغاء أي جهاز لم يعد يُستخدَم. تفعّل عملياً حماية getMemberDevices/
-  // revokeDevice الجديدة بمنح العضو أداة ذاتية لتنظيف أجهزة قديمة/مكرَّرة بلا تدخل المدير
+  // ── بطاقة "أجهزتي" — مدخل موحَّد واحد لكل ما يخص بصمة الأجهزة: ربط بصمة هذا الجهاز (إن لم تكن
+  // مرتبطة بعد) + سرد كل الأجهزة المرتبطة بالحساب (من أي جهاز رُبطت) وإلغاء أي جهاز لم يعد يُستخدَم.
+  // كانتا بطاقتين منفصلتين سابقاً (ربط الجهاز / أجهزتي) تخدمان نفس الغرض عملياً فدُمجتا في واحدة
+  // (قرار محمد الصريح) — التفاصيل كلها الآن داخل نافذة "أجهزتي" المنبثقة بدل الصفحة الرئيسية
   const devicesCardHtml = navCardHtml('nav-devices', '📱', 'أجهزتي',
-    '<p class="form-hint" style="margin:0">إدارة الأجهزة المرتبطة ببصمتك وإلغاء أي جهاز لم تعد تستخدمه</p>', 'accent-indigo');
+    '<p class="form-hint" style="margin:0">ربط بصمة جهاز جديد، وإدارة الأجهزة المرتبطة بحسابك</p>', 'accent-indigo');
 
   if (mine.length === 0) {
-    content.innerHTML = profileHtml + bioCardHtml + devicesCardHtml +
+    content.innerHTML = profileHtml + devicesCardHtml +
       '<div class="card text-center"><p style="color:var(--text-3)">لست مشتركاً في أي جمعية بعد.' +
       (available.length ? '' : ' تواصل مع المدير للاشتراك.') + '</p></div>' +
       availableSectionHtml;
-    wireBioLinkCard(content, session, me, isStale);
-    wireDevicesCard(content, session);
+    wireDevicesCard(content, session, me, isStale);
     renderAvailableAssociations(content, session, available);
     return;
   }
 
-  content.innerHTML = profileHtml + kpiSectionHtml + donutSectionHtml + entitlementCardHtml + bioCardHtml + devicesCardHtml +
+  content.innerHTML = profileHtml + kpiSectionHtml + donutSectionHtml + entitlementCardHtml + devicesCardHtml +
     '<div class="section-title">جمعياتي</div>' +
     '<div class="grid grid-2" id="assoc-list"></div>' +
     availableSectionHtml;
-  wireBioLinkCard(content, session, me, isStale);
-  wireDevicesCard(content, session);
+  wireDevicesCard(content, session, me, isStale);
 
   const list = content.querySelector('#assoc-list');
   mine.forEach(a => {
@@ -324,18 +307,57 @@ export async function renderMemberAssociationsView(content, session, isStale) {
   renderAvailableAssociations(content, session, available);
 }
 
-// يربط ضغطة بطاقة "ربط بصمة هذا الجهاز" — إن كانت مرتبطة أصلاً يكتفي بتنبيه إعلامي (بلا إعادة تسجيل
-// غير ضرورية تُنشئ صفّ جهاز مكرَّراً في قاعدة البيانات بلا داعٍ)، وإلا يُنفَّذ نفس تدفق التسجيل
-// المستخدَم بخطوة "ربط بصمة الجهاز" بصفحة الدخول (pages/Login.js) حرفياً، بفارق وحيد: رقم الجوال
-// معروف مسبقاً من الجلسة (`me.phone`) بدل انتظار إدخاله يدوياً
-function wireBioLinkCard(content, session, me, isStale) {
-  const card = content.querySelector('#bio-link-card');
+// يربط ضغطة بطاقة "أجهزتي" — يجلب أجهزة العضو الحالي (محمي بتذكرة الهوية على الخادم، انظر
+// gas/Devices.gs: getMemberDevices) ويعرضها في نافذة منبثقة موحَّدة تضم أيضاً ربط بصمة هذا الجهاز
+function wireDevicesCard(content, session, me, isStale) {
+  const card = content.querySelector('#nav-devices');
   if (!card) return;
   card.addEventListener('click', withCardLoading(card, async () => {
-    if (deviceHasBiometricLinked()) {
-      showToast('بصمة هذا الجهاز مرتبطة بالفعل', 'info');
+    let devices;
+    try {
+      devices = await callApi('getMemberDevices', { memberId: session.memberId });
+    } catch (err) {
+      showToast(err.message, 'error');
       return;
     }
+    openDevicesModal(content, session, me, devices, isStale);
+  }));
+}
+
+function openDevicesModal(content, session, me, devices, isStale) {
+  openModal({
+    title: '📱 أجهزتي',
+    bodyHtml: '<div id="link-device-section"></div><div id="devices-list"></div>',
+    onMount: () => {
+      renderLinkDeviceSection(document.getElementById('link-device-section'), content, session, me, isStale);
+      renderDevicesList(document.getElementById('devices-list'), session, devices);
+    },
+  });
+}
+
+// قسم "ربط بصمة هذا الجهاز" أعلى نافذة "أجهزتي" مباشرة — بديل بطاقة منفصلة كانت بالصفحة الرئيسية
+// تخدم نفس الغرض عملياً (كلتاهما بصمة الجهاز)، فدُمجتا هنا في مدخل واحد. لا يظهر إطلاقاً إن كان
+// هذا المتصفح لا يدعم WebAuthn أصلاً — لا معنى لعرض خيار سيفشل حتماً. إن كانت مرتبطة أصلاً يُكتفى
+// بسطر تأكيد بلا زر (لا إعادة تسجيل غير ضرورية تُنشئ صفّ جهاز مكرَّراً في قاعدة البيانات بلا داعٍ)
+function renderLinkDeviceSection(el, content, session, me, isStale) {
+  if (!isWebAuthnSupported()) { el.innerHTML = ''; return; }
+  const bioMeta = BIOMETRIC_META[guessBiometricKind()];
+
+  if (deviceHasBiometricLinked()) {
+    el.innerHTML =
+      '<div class="flex-between" style="margin-bottom:16px;padding:12px 16px;background:var(--success-soft);border-radius:var(--radius-sm)">' +
+        '<span style="font-size:12.5px;font-weight:700;color:var(--success)">بصمة هذا الجهاز مرتبطة</span>' +
+        '<span class="badge badge-success">✓</span>' +
+      '</div>';
+    return;
+  }
+
+  el.innerHTML =
+    '<button class="btn btn-gold btn-block" id="link-device-btn">' + bioMeta.link + '</button>' +
+    '<p class="form-hint" style="margin:8px 0 16px">دخول أسرع من المرة القادمة بلا حاجة لإدخال رقم الجوال</p>';
+
+  const btn = el.querySelector('#link-device-btn');
+  btn.addEventListener('click', withButtonLoading(btn, async () => {
     if (!me) { showToast('تعذّر تحديد رقم جوالك، أعد تحميل الصفحة وحاول مرة أخرى', 'error'); return; }
 
     let begin;
@@ -371,34 +393,17 @@ function wireBioLinkCard(content, session, me, isStale) {
 
     markDeviceBiometricLinked();
     showToast('تم ربط بصمة جهازك بنجاح', 'success');
-    if (isStale && isStale()) return; // المستخدم انتقل لمكان آخر أثناء العملية — لا داعي لإعادة رسم هذا القسم فوقه
-    renderMemberAssociationsView(content, session, isStale); // إعادة رسم فورية لتحديث حالة البطاقة (✓)
-  }));
-}
-
-// يربط ضغطة بطاقة "أجهزتي" — يجلب أجهزة العضو الحالي (محمي بتذكرة الهوية على الخادم، انظر
-// gas/Devices.gs: getMemberDevices) ويعرضها في نافذة منبثقة قابلة للتحديث الحي بعد كل إلغاء
-function wireDevicesCard(content, session) {
-  const card = content.querySelector('#nav-devices');
-  if (!card) return;
-  card.addEventListener('click', withCardLoading(card, async () => {
-    let devices;
-    try {
-      devices = await callApi('getMemberDevices', { memberId: session.memberId });
-    } catch (err) {
-      showToast(err.message, 'error');
-      return;
+    // تحديث النافذة المفتوحة نفسها فوراً (يتحوّل هذا القسم لحالة "مرتبطة ✓" وتظهر قائمة الأجهزة
+    // الجهاز الجديد) بدل إغلاقها أو إعادة تحميل الصفحة كاملة خلفها
+    renderLinkDeviceSection(el, content, session, me, isStale);
+    const listEl = document.getElementById('devices-list');
+    if (listEl) {
+      try {
+        const refreshed = await callApi('getMemberDevices', { memberId: session.memberId });
+        renderDevicesList(listEl, session, refreshed);
+      } catch (err) { /* القائمة تبقى بحالتها القديمة إن فشل التحديث — الربط نفسه نجح فعلاً */ }
     }
-    openDevicesModal(session, devices);
   }));
-}
-
-function openDevicesModal(session, devices) {
-  openModal({
-    title: '📱 أجهزتي',
-    bodyHtml: '<div id="devices-list"></div>',
-    onMount: () => renderDevicesList(document.getElementById('devices-list'), session, devices),
-  });
 }
 
 // كل جهاز ببطاقة مستقلة: اسمه، تاريخ ربطه وآخر استخدام، وزر إلغاء لأي جهاز لا يزال نشطاً فقط
