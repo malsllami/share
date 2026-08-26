@@ -362,7 +362,7 @@ function renderLinkDeviceSection(el, content, session, me, isStale) {
 
     let begin;
     try {
-      begin = await callApi('beginDeviceRegistration', { phone: me.phone });
+      begin = await callApi('beginDeviceRegistration', {});
     } catch (err) {
       showToast(err.message, 'error');
       return;
