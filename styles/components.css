@@ -347,8 +347,8 @@
 .mpc-delivery-countdown.done { color: var(--success); background: var(--success-soft); border-color: transparent; }
 
 /* ═══════════════════ حلقة توزيع (Donut) — CSS محض عبر conic-gradient، بلا أي مكتبة رسوم ═══════════════════ */
-.donut-wrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
-.donut-ring { width: 116px; height: 116px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.donut-wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.donut-ring { width: 92px; height: 92px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
 .donut-hole { width: 64%; height: 64%; border-radius: 50%; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: var(--sh); }
 .donut-hole b { font-family: 'Sora', sans-serif; font-size: 16px; font-weight: 800; color: var(--text); }
 .donut-hole span { font-size: 9px; color: var(--text-3); margin-top: 2px; }
@@ -360,7 +360,7 @@
 
 /* ═══════════════════ رسم خطي بسيط (أداء التحصيل/التسليم الشهري) — SVG محض ═══════════════════ */
 .linechart-wrap { display: flex; flex-direction: column; gap: 10px; }
-.linechart-svg { width: 100%; height: 130px; display: block; }
+.linechart-svg { width: 100%; height: 100px; display: block; }
 .linechart-legend { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 .linechart-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); font-weight: 600; }
 .linechart-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }

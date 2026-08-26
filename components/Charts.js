@@ -38,7 +38,7 @@ export function renderDonutHtml(segments, centerBig, centerSmall) {
 
 // seriesList: [{ label, color, data:[أرقام] }] — كل السلاسل بنفس طول labels
 export function renderLineChartHtml(seriesList, labels) {
-  const width = 320, height = 130, padX = 10, padY = 16;
+  const width = 320, height = 100, padX = 10, padY = 14;
   const allVals = [].concat(...seriesList.map(s => s.data));
   const max = Math.max(1, ...allVals) * 1.15;
   const n = labels.length;

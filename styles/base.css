@@ -99,6 +99,7 @@ a { color: inherit; }
 }
 @media (prefers-reduced-motion: reduce) { .card-loading::after { animation: none; opacity: .5; } }
 .card-title { font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.card-title .icon-svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--indigo-text); }
 .section-title { font-family: 'Sora', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
 .section-title::before { content: ''; width: 4px; height: 20px; border-radius: var(--pill); background: linear-gradient(to bottom, var(--indigo), var(--gold)); }
 .grid { display: grid; gap: 14px; }

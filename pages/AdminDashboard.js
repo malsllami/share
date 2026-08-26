@@ -79,11 +79,11 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 /* ══════════════════ نظرة عامة ══════════════════ */
 // بطاقة مؤشر متدرّجة صغيرة — أيقونة بيضاء شبه شفافة + رقم بارز + تسمية، تُبنى فوق .stat-card
 // الموجودة أصلاً (blue/gold/green/purple + orange الجديد) بدل بطاقات مسطّحة بيضاء/سوداء بلا تمييز
-function statCard(color, iconSvg, value, label) {
+function statCard(color, iconSvg, value, label, compactValue) {
   return (
     '<div class="stat-card ' + color + '">' +
       '<div style="color:#fff;opacity:.85">' + iconSvg + '</div>' +
-      '<div class="n" style="margin-top:8px">' + value + '</div>' +
+      '<div class="n" style="margin-top:8px' + (compactValue ? ';font-size:15px' : '') + '">' + value + '</div>' +
       '<div class="l">' + label + '</div>' +
     '</div>'
   );
@@ -215,7 +215,7 @@ async function showOverviewTab(content, activate, session, isStale) {
   const donutSegments = monthTotals.map((m, i) => ({ label: 'شهر ' + formatNumber(m.monthNum), value: Number(m.usedRiyal) || 0, color: donutColors[i % donutColors.length] }));
   const monthsWithWishes = monthTotals.filter(m => Number(m.usedRiyal) > 0).length;
   const donutHtml = activeAssoc
-    ? renderDonutHtml(donutSegments, formatNumber(monthsWithWishes), 'من ' + formatNumber(activeAssoc.duration) + ' شهر لها رغبات')
+    ? renderDonutHtml(donutSegments, formatNumber(monthsWithWishes), 'من ' + formatNumber(activeAssoc.duration) + ' أشهر لها رغبات موزَّعة')
     : '<p class="table-empty">لا توجد جمعية نشطة لعرض توزيع رغباتها</p>';
 
   // رسم خطي: تحصيل/تسليم "تم" فعلياً (تشيك بوكس مؤكَّد) لكل شهر من getMonthsConfirmationSummary
@@ -233,7 +233,7 @@ async function showOverviewTab(content, activate, session, isStale) {
       statCard('blue', ICONS.people, formatNumber(activeMembers.length), 'الأعضاء النشطون') +
       statCard('green', ICONS.wallet, formatCurrency(activeSummary ? activeSummary.collectionDone : 0), 'إجمالي التحصيل — الجمعية النشطة') +
       statCard('purple', ICONS.handoff, formatCurrency(activeSummary ? activeSummary.deliveryDone : 0), 'إجمالي التسليم — الجمعية النشطة') +
-      statCard('gold', ICONS.building, formatNumber(activeAssociations.length), 'الجمعيات الجارية') +
+      statCard('gold', ICONS.building, formatNumber(activeAssociations.filter(a => a.status === 'نشطة').length) + ' نشطة  ·  ' + formatNumber(activeAssociations.filter(a => a.status === 'جديدة').length) + ' جديدة', 'الجمعيات الجارية', true) +
       statCard('orange', ICONS.target, commitmentPercent + '٪', 'مستوى الالتزام — الجمعية النشطة') +
     '</div>' +
 
