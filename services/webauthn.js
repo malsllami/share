@@ -58,25 +58,6 @@ export async function registerDeviceCredential({ challenge, memberId, memberName
   };
 }
 
-export async function loginWithDeviceCredential({ challenge, credentialIds, rpId }) {
-  if (!isWebAuthnSupported()) throw new Error('هذا المتصفح أو الجهاز لا يدعم الدخول بالبصمة');
-  const publicKey = {
-    challenge: base64UrlToBuffer(challenge),
-    rpId,
-    allowCredentials: credentialIds.map(id => ({ type: 'public-key', id: base64UrlToBuffer(id) })),
-    userVerification: 'required',
-    timeout: 60000,
-  };
-  const assertion = await navigator.credentials.get({ publicKey });
-  if (!assertion) throw new Error('تم إلغاء عملية الدخول بالبصمة');
-  return {
-    credentialId: bufferToBase64Url(assertion.rawId),
-    clientDataJSON: bufferToBase64Url(assertion.response.clientDataJSON),
-    authenticatorData: bufferToBase64Url(assertion.response.authenticatorData),
-    signature: bufferToBase64Url(assertion.response.signature),
-  };
-}
-
 // دخول مباشر بلا رقم جوال: بلا allowCredentials إطلاقاً — هذا هو المفتاح الذي يسمح للمتصفح بعرض
 // أي بيانات اعتماد قابلة للاكتشاف محفوظة مسبقاً لهذا rpId والسماح للمستخدم باختيارها مباشرة
 export async function loginWithDiscoverableCredential({ challenge, rpId }) {
@@ -95,4 +76,15 @@ export async function loginWithDiscoverableCredential({ challenge, rpId }) {
     authenticatorData: bufferToBase64Url(assertion.response.authenticatorData),
     signature: bufferToBase64Url(assertion.response.signature),
   };
+}
+
+// تصنيف موحَّد لأخطاء البصمة — يحل محل نسخ مكرَّرة من نفس المنطق كانت متفرقة بين صفحتي الدخول
+// ولوحة العضو. context: 'register' (ربط جهاز جديد) أو 'login' (دخول بجهاز موجود)
+export function describeWebAuthnError(err, context) {
+  if (err && err.name === 'NotAllowedError') {
+    return context === 'login'
+      ? 'لم يتم العثور على بصمة مسجَّلة لهذا الجهاز على سهم، أو تم إلغاء العملية'
+      : 'لم تكتمل عملية البصمة — تم الإلغاء أو انتهت المهلة، حاول مرة أخرى';
+  }
+  return (err && err.message) || 'تعذّر إتمام عملية البصمة';
 }

@@ -42,21 +42,22 @@ export function getRememberedPhone() {
   return localStorage.getItem('sahm_last_phone') || '';
 }
 
-// علم محلي: هل رَبَط هذا الجهاز (المتصفح) بصمة WebAuthn من قبل؟ يُستخدم فقط لاختيار شاشة الدخول
-// المناسبة محلياً (بصمة+جوال معاً، أو جوال فقط) — لا علاقة له بأي قرار أمني؛ الخادم يبقى مصدر
-// الحقيقة الفعلي دائماً عبر التحقق التشفيري الحقيقي لحظة الدخول.
-// Local-only flag: has this device ever linked a WebAuthn credential? Used purely to decide which
-// login screen to render — the server remains the real source of truth via actual crypto verification.
+// علم محلي: هل رَبَط هذا الجهاز (المتصفح) بصمة WebAuthn من قبل؟ بعد إعادة البناء أصبح **تلميح
+// عرض تجميلي بحت** (أيّ قسم يظهر أعلى/أبرز في شاشة الدخول: البصمة أو الجوال) — لا يمنع ظهور أي
+// خيار بعد الآن. القرار الفعلي الوحيد يبقى دائماً عند الخادم عبر التحقق التشفيري الحقيقي لحظة
+// الدخول (زر البصمة يظهر دائماً طالما المتصفح يدعمها، بصرف النظر عن قيمة هذا العلم).
+// Local-only display hint: has this device ever linked a WebAuthn credential? After the rebuild
+// this is purely cosmetic (which section renders first/larger) — it never gates which option
+// appears. The server remains the sole source of truth via real crypto verification at login time.
 export function markDeviceBiometricLinked() {
   localStorage.setItem('sahm_device_biometric', '1');
 }
 export function deviceHasBiometricLinked() {
   return localStorage.getItem('sahm_device_biometric') === '1';
 }
-// يمسح العلم — يُستدعى فقط عندما يرفض الخادم صراحة الجهاز بأنه "غير مرتبط" (مثلاً بعد أن حذف
-// المدير جهازاً، أو حُذف صف الجهاز من قاعدة البيانات) — وليس عند مجرد NotAllowedError (قد يكون
-// مجرد إلغاء المستخدم للعملية، لا يعني غياب البصمة فعلاً). هذا "يشفي" الجهاز تلقائياً من حالة
-// عالقة (الزر يظهر لكنه لن يعمل أبداً) بإعادته لمسار "ربط بصمة جديد" في المحاولة التالية.
+// يمسح العلم — لم يعد يُستدعى تلقائياً من أي مكان في الواجهة بعد إعادة البناء (فشل بصمة، معروف
+// أو غير معروف، لم يعد يُخفي أي قسم أو يجبر مساراً آخر). تبقى الدالة مصدَّرة لاستخدام يدوي مستقبلي
+// فقط إن احتاج الأمر (مثلاً زر "نسيت الجهاز" صريح من الواجهة لاحقاً).
 export function clearDeviceBiometricLink() {
   localStorage.removeItem('sahm_device_biometric');
 }

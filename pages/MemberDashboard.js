@@ -11,7 +11,7 @@ import { formatPhoneDisplay } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading, withCardLoading } from '../components/Button.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
-import { registerDeviceCredential, isWebAuthnSupported } from '../services/webauthn.js';
+import { registerDeviceCredential, isWebAuthnSupported, describeWebAuthnError } from '../services/webauthn.js';
 import { markDeviceBiometricLinked, deviceHasBiometricLinked } from '../services/auth.js';
 import { guessDeviceName, guessBiometricKind, BIOMETRIC_META } from '../utils/deviceBiometric.js';
 import { RP_ID, RP_NAME } from '../config/config.js';
@@ -117,21 +117,29 @@ export async function renderMemberAssociationsView(content, session, isStale) {
       '</div>'
     : '';
 
+  // ── بطاقة "أجهزتي" — سرد كل بصمات الأجهزة المرتبطة بحساب العضو (من أي جهاز رَبَطها، لا هذا
+  // المتصفح فقط) مع إمكانية إلغاء أي جهاز لم يعد يُستخدَم. تفعّل عملياً حماية getMemberDevices/
+  // revokeDevice الجديدة بمنح العضو أداة ذاتية لتنظيف أجهزة قديمة/مكرَّرة بلا تدخل المدير
+  const devicesCardHtml = navCardHtml('nav-devices', '📱', 'أجهزتي',
+    '<p class="form-hint" style="margin:0">إدارة الأجهزة المرتبطة ببصمتك وإلغاء أي جهاز لم تعد تستخدمه</p>', 'accent-indigo');
+
   if (mine.length === 0) {
-    content.innerHTML = profileHtml + bioCardHtml +
+    content.innerHTML = profileHtml + bioCardHtml + devicesCardHtml +
       '<div class="card text-center"><p style="color:var(--text-3)">لست مشتركاً في أي جمعية بعد.' +
       (available.length ? '' : ' تواصل مع المدير للاشتراك.') + '</p></div>' +
       availableSectionHtml;
     wireBioLinkCard(content, session, me, isStale);
+    wireDevicesCard(content, session);
     renderAvailableAssociations(content, session, available);
     return;
   }
 
-  content.innerHTML = profileHtml + bioCardHtml +
+  content.innerHTML = profileHtml + bioCardHtml + devicesCardHtml +
     '<div class="section-title">جمعياتي</div>' +
     '<div class="grid grid-2" id="assoc-list"></div>' +
     availableSectionHtml;
   wireBioLinkCard(content, session, me, isStale);
+  wireDevicesCard(content, session);
 
   const list = content.querySelector('#assoc-list');
   mine.forEach(a => {
@@ -192,9 +200,9 @@ function wireBioLinkCard(content, session, me, isStale) {
         rpId: RP_ID, rpName: RP_NAME,
       });
     } catch (err) {
-      // نفس تصنيف NotAllowedError المستخدَم بصفحة الدخول — رسالة عربية مفهومة بدل نص المتصفح الخام
-      if (err && err.name === 'NotAllowedError') showToast('لم تكتمل عملية البصمة — تم الإلغاء أو انتهت المهلة، حاول مرة أخرى', 'error');
-      else showToast(err.message || 'تعذّر ربط بصمة الجهاز', 'error');
+      // نفس التصنيف الموحَّد المستخدَم بصفحة الدخول (services/webauthn.js) — رسالة عربية مفهومة
+      // بدل نص المتصفح الخام، ومطابقة حرفياً بين كل موضع يظهر فيه خيار البصمة بالموقع
+      showToast(describeWebAuthnError(err, 'register'), 'error');
       return;
     }
 
@@ -213,6 +221,77 @@ function wireBioLinkCard(content, session, me, isStale) {
     if (isStale && isStale()) return; // المستخدم انتقل لمكان آخر أثناء العملية — لا داعي لإعادة رسم هذا القسم فوقه
     renderMemberAssociationsView(content, session, isStale); // إعادة رسم فورية لتحديث حالة البطاقة (✓)
   }));
+}
+
+// يربط ضغطة بطاقة "أجهزتي" — يجلب أجهزة العضو الحالي (محمي بتذكرة الهوية على الخادم، انظر
+// gas/Devices.gs: getMemberDevices) ويعرضها في نافذة منبثقة قابلة للتحديث الحي بعد كل إلغاء
+function wireDevicesCard(content, session) {
+  const card = content.querySelector('#nav-devices');
+  if (!card) return;
+  card.addEventListener('click', withCardLoading(card, async () => {
+    let devices;
+    try {
+      devices = await callApi('getMemberDevices', { memberId: session.memberId });
+    } catch (err) {
+      showToast(err.message, 'error');
+      return;
+    }
+    openDevicesModal(session, devices);
+  }));
+}
+
+function openDevicesModal(session, devices) {
+  openModal({
+    title: '📱 أجهزتي',
+    bodyHtml: '<div id="devices-list"></div>',
+    onMount: () => renderDevicesList(document.getElementById('devices-list'), session, devices),
+  });
+}
+
+// كل جهاز ببطاقة مستقلة: اسمه، تاريخ ربطه وآخر استخدام، وزر إلغاء لأي جهاز لا يزال نشطاً فقط
+// (جهاز مُلغى مسبقاً يظهر للتوثيق بلا زر — لا حذف فعلي للصف أبداً، سلامة بيانات)
+function renderDevicesList(container, session, devices) {
+  if (!devices.length) {
+    container.innerHTML = '<p class="table-empty">لا توجد أجهزة مرتبطة بعد</p>';
+    return;
+  }
+  container.innerHTML = '';
+  devices.slice().sort((a, b) => new Date(b.linkedDate) - new Date(a.linkedDate)).forEach(d => {
+    const active = d.status === 'نشط';
+    const row = document.createElement('div');
+    row.className = 'card mt-16';
+    row.innerHTML =
+      '<div class="flex-between">' +
+        '<div class="nav-card-title">' + d.deviceName + '</div>' +
+        '<span class="badge badge-' + (active ? 'success' : 'gray') + '">' + d.status + '</span>' +
+      '</div>' +
+      '<div class="assoc-meta mt-16">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">تاريخ الربط</div><div class="assoc-meta-val">' + (d.linkedDate ? new Date(d.linkedDate).toLocaleDateString('en-GB') : '—') + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">آخر استخدام</div><div class="assoc-meta-val">' + (d.lastUsed ? new Date(d.lastUsed).toLocaleDateString('en-GB') : '—') + '</div></div>' +
+      '</div>' +
+      (active ? '<button class="btn btn-outline btn-block mt-16 revoke-device-btn">إلغاء هذا الجهاز</button>' : '');
+
+    if (active) {
+      const revokeBtn = row.querySelector('.revoke-device-btn');
+      revokeBtn.addEventListener('click', withButtonLoading(revokeBtn, async () => {
+        try {
+          await callApi('revokeDevice', { deviceId: d.id });
+        } catch (err) {
+          showToast(err.message, 'error');
+          return;
+        }
+        showToast('تم إلغاء الجهاز', 'success');
+        let refreshed;
+        try {
+          refreshed = await callApi('getMemberDevices', { memberId: session.memberId });
+        } catch (err) {
+          return; // النافذة تبقى بحالتها القديمة إن فشل التحديث — لا خطأ فادح، الإلغاء نفسه نجح فعلاً
+        }
+        renderDevicesList(container, session, refreshed);
+      }));
+    }
+    container.appendChild(row);
+  });
 }
 
 // بطاقات الجمعيات "الجديدة" المتاحة للاشتراك الذاتي — كل بطاقة بها زر يفتح نافذة إدخال عدد الأسهم
