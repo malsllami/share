@@ -16,13 +16,6 @@ import { renderBottomNavHtml, wireBottomNav, updateBottomNavActive } from '../co
 import { renderDonutHtml, renderLineChartHtml } from '../components/Charts.js';
 import { ICONS } from '../utils/icons.js';
 
-// أيقونة كل تبويب — تُستخدم فقط في العرض الجانبي على الشاشات الأوسع من الجوال (انظر .admin-shell
-// بـ styles/components.css)؛ الشريط الأفقي/التنقّل السفلي على الجوال لا يتأثران بهذا إطلاقاً
-const TAB_ICONS = {
-  overview: ICONS.home, 'my-associations': ICONS.building, associations: ICONS.building,
-  members: ICONS.people, settings: ICONS.gear, archive: ICONS.archive,
-};
-
 // المدير عضو في نفس النظام بنفس الوقت (رقم جواله مسجَّل كعضو أيضاً) — تبويب "جمعياتي" يتيح له
 // الاشتراك واختيار رغباته الخاصة تماماً كأي عضو آخر، بجانب صلاحياته الإدارية في بقية التبويبات.
 const TABS = [
@@ -68,9 +61,8 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
     else if (tabId === 'archive') showArchiveTab(content, isStale);
   }
 
-  tabsEl.innerHTML = TABS.map(t =>
-    '<button class="tab-btn" data-tab="' + t.id + '"><span class="tab-btn-icon">' + (TAB_ICONS[t.id] || '') + '</span><span>' + t.label + '</span></button>'
-  ).join('');
+  // #admin-tabs مخفي دائماً (لا شريط جانبي/علوي بديل) — يبقى فقط كحامل لحالة "التبويب النشط" الداخلية
+  tabsEl.innerHTML = TABS.map(t => '<button class="tab-btn" data-tab="' + t.id + '">' + t.label + '</button>').join('');
   tabsEl.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => activate(b.dataset.tab)));
   wireBottomNav(root, activate);
   activate('overview');
