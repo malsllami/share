@@ -66,6 +66,18 @@ function buildMyProgressCardHtml(activeAssoc, prog) {
 // الاستحقاق، بتلوين محدَّد: أخضر = تم الاستلام فعلاً، أزرق = أقل من 30 يوماً متبقياً،
 // برتقالي = 30 يوماً فأكثر متبقياً — نظام ألوان مختلف عمداً عن بطاقة "أشهر استلامي المحدَّدة"
 // الأقدم (أحمر/ذهبي/محايد) المستخدَمة داخل تفصيل الجمعية؛ الاثنتان تتعايشان لغرضين مختلفين
+// نهاية فترة الشهر (بداية الشهر التالي) — تاريخ "الاستحقاق" الفعلي دائماً هو نهاية الشهر، وليس
+// بدايته (نفس تعريف "past/current/future" في computeMonthProgress بـutils/dates.js بالضبط: شهر
+// جارٍ يبقى "جارياً" حتى نهايته الكاملة). daysUntil على تاريخ البداية مباشرة كان يُظهر "مستحق الآن"
+// فور بداية الشهر بدل بقية أيامه — خطأ صُحِّح صراحة بعد ملاحظة محمد
+function monthDueDate_(monthStartDate) {
+  const start = new Date(monthStartDate);
+  if (isNaN(start)) return null;
+  const due = new Date(start);
+  due.setMonth(due.getMonth() + 1);
+  return due;
+}
+
 function buildMyEntitlementCardHtml(activeAssoc, deliveryRows, monthDateByNum) {
   if (!deliveryRows || deliveryRows.length === 0) {
     return (
@@ -79,7 +91,7 @@ function buildMyEntitlementCardHtml(activeAssoc, deliveryRows, monthDateByNum) {
       state = 'state-done'; countdownClass = 'done';
       countdownText = 'تم الاستلام' + (r.confirmDate ? ' — ' + new Date(r.confirmDate).toLocaleDateString('en-GB') : '');
     } else {
-      const d = daysUntil(monthDateByNum.get(Number(r.monthNum)));
+      const d = daysUntil(monthDueDate_(monthDateByNum.get(Number(r.monthNum))));
       if (d === null || d < 30) {
         state = 'state-soon-blue'; countdownClass = 'soon-blue';
         countdownText = (d === null || d <= 0) ? 'مستحق الآن' : 'خلال ' + formatNumber(d) + ' يوم';
@@ -222,7 +234,11 @@ export async function renderMemberAssociationsView(content, session, isStale) {
   // ── توزيع استحقاقي على الأشهر — حلقة توزيع من رغباتي الفعلية في الجمعية النشطة فقط ──
   const donutSectionHtml = !activeAssoc || activeDeliveryRows.length === 0 ? '' : (function () {
     const colors = ['var(--kpi-blue-1)', 'var(--kpi-green-1)', 'var(--kpi-purple-1)', 'var(--kpi-orange-1)', 'var(--kpi-gold-1)', 'var(--indigo-l)'];
-    const segments = activeDeliveryRows.map((r, i) => ({ label: 'الشهر ' + formatNumber(r.monthNum), value: Number(r.deliveryValue) || 0, color: colors[i % colors.length] }));
+    // مرتَّبة برقم الشهر دائماً — getMemberDeliveryRows تُعيد الصفوف بترتيب إدراجها بالجدول (ترتيب
+    // اختيار العضو لأشهره الفعلي)، وليس بالضرورة بترتيب رقم الشهر تصاعدياً
+    const segments = activeDeliveryRows.slice().sort((a, b) => a.monthNum - b.monthNum).map((r, i) =>
+      ({ label: 'الشهر ' + formatNumber(r.monthNum), value: Number(r.deliveryValue) || 0, color: colors[i % colors.length] })
+    );
     return (
       '<div class="card mt-16"><div class="card-title">' + ICONS.donut + ' توزيع استحقاقي على الأشهر</div>' +
         renderDonutHtml(segments, formatNumber(activeDeliveryRows.length), 'أشهر محدَّدة للاستلام') +

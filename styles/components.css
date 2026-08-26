@@ -350,10 +350,12 @@
 /* بطاقة "رغباتي واستحقاقي" بلوحة العضو — نظام ألوان مختلف صراحةً بقرار محمد: أخضر=تم الاستلام،
    أزرق=أقل من 30 يوماً متبقياً، برتقالي=30 يوماً فأكثر متبقياً (بدل الأحمر/الذهبي/المحايد المستخدَمة
    في بطاقة "أشهر استلامي المحدَّدة" الأقدم — الاثنتان تتعايشان لغرضين مختلفين) */
-.mpc-delivery-row.state-soon-blue .mpc-delivery-month { background: linear-gradient(135deg, #1e3a8a, var(--indigo-l)); }
+.mpc-delivery-row.state-soon-blue .mpc-delivery-month { background: linear-gradient(135deg, #1d4ed8, #3b82f6); }
 .mpc-delivery-row.state-far-orange .mpc-delivery-month { background: linear-gradient(135deg, #9a3412, var(--orange)); }
-.mpc-delivery-countdown.soon-blue { color: #1e3a8a; background: var(--indigo-soft); border-color: transparent; }
+.mpc-delivery-countdown.soon-blue { color: #3b82f6; background: rgba(59,130,246,0.16); border-color: transparent; }
 .mpc-delivery-countdown.far-orange { color: var(--orange); background: rgba(242,121,46,0.14); border-color: transparent; }
+@media (prefers-color-scheme: dark) { .mpc-delivery-countdown.soon-blue { color: #60a5fa; } }
+:root[data-theme="dark"] .mpc-delivery-countdown.soon-blue { color: #60a5fa; }
 
 /* ═══════════════════ حلقة توزيع (Donut) — CSS محض عبر conic-gradient، بلا أي مكتبة رسوم ═══════════════════ */
 .donut-wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -367,6 +369,8 @@
 .donut-legend-label { flex: 1; color: var(--text-2); }
 .donut-legend-val { font-weight: 800; color: var(--text); text-align: left; }
 .donut-legend-val small { display: block; font-weight: 600; font-size: 9.5px; color: var(--text-3); margin-top: 1px; }
+.donut-legend-total { border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 8px; font-weight: 800; }
+.donut-legend-total .donut-legend-label { color: var(--text); }
 
 /* ═══════════════════ رسم خطي بسيط (أداء التحصيل/التسليم الشهري) — SVG محض ═══════════════════ */
 .linechart-wrap { display: flex; flex-direction: column; gap: 10px; }

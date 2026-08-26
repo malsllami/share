@@ -1,15 +1,32 @@
 // رسوم بيانية خفيفة بلا أي مكتبة خارجية — حلقة توزيع (CSS conic-gradient) ورسم خطي بسيط (SVG)
 // Lightweight chart helpers, zero external libraries — CSS conic-gradient donut + a small SVG line chart
 
-// segments: [{ label, value, color }] — color أي قيمة CSS صالحة (var(--x) أو hex). القيم الفارغة/صفرية
-// تُعرض كحلقة رمادية محايدة بدل الانهيار على قسمة صفر.
+// طريقة "أكبر باقٍ" (Largest Remainder / Hamilton) لتقريب نسب مئوية مستقلة بحيث يكون مجموعها
+// 100٪ بالضبط دائماً — تقريب كل نسبة على حدة (Math.round) قد يُنتج مجموعاً 99٪ أو 101٪ رغم صحة
+// كل رقم فردياً حسابياً؛ هذا يُصلح المجموع نفسه ليكون 100٪ تماماً كما يُتوقَّع من أي توزيع كامل
+function fairPercents_(values) {
+  const total = values.reduce((s, v) => s + v, 0);
+  if (total <= 0) return values.map(() => 0);
+  const raw = values.map(v => (v / total) * 100);
+  const floors = raw.map(Math.floor);
+  let remaining = 100 - floors.reduce((s, f) => s + f, 0);
+  const order = floors.map((f, i) => i).sort((a, b) => (raw[b] - floors[b]) - (raw[a] - floors[a]));
+  const result = floors.slice();
+  for (let i = 0; i < order.length && remaining > 0; i++, remaining--) result[order[i]]++;
+  return result;
+}
+
+// segments: [{ label, value, color }] — color أي قيمة CSS صالحة (var(--x) أو hex). يُفترض أن الطالب
+// رتَّب segments بالترتيب المطلوب عرضه به مسبقاً (مثلاً حسب رقم الشهر) — هذه الدالة لا تُعيد الترتيب.
+// القيم الفارغة/صفرية تُعرض كحلقة رمادية محايدة بدل الانهيار على قسمة صفر.
 export function renderDonutHtml(segments, centerBig, centerSmall) {
   const total = segments.reduce((s, x) => s + Number(x.value || 0), 0);
+  const percents = fairPercents_(segments.map(s => Number(s.value) || 0));
+
   let acc = 0;
   const stops = total > 0
-    ? segments.map(seg => {
-        const pct = (Number(seg.value || 0) / total) * 100;
-        const start = acc, end = acc + pct;
+    ? segments.map((seg, i) => {
+        const start = acc, end = acc + percents[i];
         acc = end;
         return seg.color + ' ' + start + '% ' + end + '%';
       }).join(', ')
@@ -17,23 +34,28 @@ export function renderDonutHtml(segments, centerBig, centerSmall) {
 
   // القيمة الفعلية (ريال) تُعرض بجانب النسبة دائماً — لا تكتفِ النسبة وحدها، حتى يتحقق من الأرقام
   // مباشرة بنفسه بلا حاجة لتخمين معنى النسبة (طُلب صراحة بعد التباس حول دقّة النسب المعروضة)
-  const legend = segments.map(seg => {
-    const pct = total > 0 ? Math.round((Number(seg.value || 0) / total) * 100) : 0;
-    return (
+  const legend = segments.map((seg, i) => (
       '<div class="donut-legend-row">' +
         '<span class="donut-legend-dot" style="background:' + seg.color + '"></span>' +
         '<span class="donut-legend-label">' + seg.label + '</span>' +
-        '<span class="donut-legend-val">' + pct + '٪<small>' + Math.round(Number(seg.value || 0)).toLocaleString('en-US') + ' ر.س</small></span>' +
+        '<span class="donut-legend-val">' + percents[i] + '٪<small>' + Math.round(Number(seg.value || 0)).toLocaleString('en-US') + ' ر.س</small></span>' +
       '</div>'
-    );
-  }).join('');
+    )
+  ).join('');
+
+  // صف إجمالي أسفل القائمة — مجموع القيم الفعلي عبر كل الأشهر المعروضة، والنسب مضمونة ١٠٠٪ دائماً
+  const totalRow =
+    '<div class="donut-legend-row donut-legend-total">' +
+      '<span class="donut-legend-label">الإجمالي</span>' +
+      '<span class="donut-legend-val">100٪<small>' + Math.round(total).toLocaleString('en-US') + ' ر.س</small></span>' +
+    '</div>';
 
   return (
     '<div class="donut-wrap">' +
       '<div class="donut-ring" style="background:conic-gradient(' + stops + ')">' +
         '<div class="donut-hole"><b>' + centerBig + '</b><span>' + centerSmall + '</span></div>' +
       '</div>' +
-      '<div class="donut-legend">' + legend + '</div>' +
+      '<div class="donut-legend">' + legend + totalRow + '</div>' +
     '</div>'
   );
 }

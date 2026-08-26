@@ -229,7 +229,9 @@ async function showOverviewTab(content, activate, session, isStale) {
   // رسم دائري: كم شهراً من مدة الجمعية النشطة له رغبات موزَّعة فعلاً (usedRiyal > 0) — من نفس بيانات
   // getMonthsWithTotals المستخدَمة أصلاً بشاشة "الأشهر"، لا حساب جديد منفصل
   const donutColors = ['var(--kpi-blue-1)', 'var(--kpi-green-1)', 'var(--kpi-purple-1)', 'var(--kpi-orange-1)', 'var(--kpi-gold-1)', 'var(--indigo-l)'];
-  const donutSegments = monthTotals.map((m, i) => ({ label: 'شهر ' + formatNumber(m.monthNum), value: Number(m.usedRiyal) || 0, color: donutColors[i % donutColors.length] }));
+  const donutSegments = monthTotals.slice().sort((a, b) => a.monthNum - b.monthNum).map((m, i) =>
+    ({ label: 'شهر ' + formatNumber(m.monthNum), value: Number(m.usedRiyal) || 0, color: donutColors[i % donutColors.length] })
+  );
   const monthsWithWishes = monthTotals.filter(m => Number(m.usedRiyal) > 0).length;
   const donutHtml = activeAssoc
     ? renderDonutHtml(donutSegments, formatNumber(monthsWithWishes), 'من ' + formatNumber(activeAssoc.duration) + ' أشهر لها رغبات موزَّعة')
