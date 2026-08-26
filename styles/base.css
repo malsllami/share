@@ -113,8 +113,10 @@ a { color: inherit; }
 .stat-card.gold  { background: linear-gradient(145deg,#92400e,#d97706); border: none; box-shadow: 0 8px 32px rgba(217,119,6,0.35); }
 .stat-card.green { background: linear-gradient(145deg,#065f46,#059669); border: none; box-shadow: 0 8px 32px rgba(5,150,105,0.35); }
 .stat-card.purple{ background: linear-gradient(145deg,#4c1d95,#7c3aed); border: none; box-shadow: 0 8px 32px rgba(124,58,237,0.35); }
-.stat-card.blue .n, .stat-card.gold .n, .stat-card.green .n, .stat-card.purple .n { color: #fff; }
-.stat-card.blue .l, .stat-card.gold .l, .stat-card.green .l, .stat-card.purple .l { color: rgba(255,255,255,0.72); }
+.stat-card.orange{ background: linear-gradient(145deg,#9a3412,#f2792e); border: none; box-shadow: 0 8px 32px rgba(242,121,46,0.35); }
+.stat-card.blue .n, .stat-card.gold .n, .stat-card.green .n, .stat-card.purple .n, .stat-card.orange .n { color: #fff; }
+.stat-card.blue .l, .stat-card.gold .l, .stat-card.green .l, .stat-card.purple .l, .stat-card.orange .l { color: rgba(255,255,255,0.72); }
+.stat-card .icon-svg { width: 18px; height: 18px; }
 
 /* ── نماذج الإدخال ── */
 .form-group { margin-bottom: 16px; }

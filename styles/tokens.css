@@ -27,6 +27,21 @@
   --danger:       #f03e3e;
   --danger-soft:  rgba(240,62,62,0.12);
 
+  /* ── ألوان إضافية (بنفسجي/برتقالي) — تكمل اللوحة القائمة لبطاقات المؤشرات المتدرّجة، ثابتة بلا
+     تغيّر بين الوضعين كباقي ألوان الهوية أعلاه ── */
+  --purple:   #7c5cc7;
+  --purple-l: #a48eda;
+  --orange:   #f2792e;
+  --orange-l: #ffab6b;
+
+  /* ── تدرّجات بطاقات المؤشرات (KPI) — إضافية فقط، لا تستبدل أي ثابت قائم؛ كل زوج (بداية/نهاية)
+     يُستخدَم كـ linear-gradient(135deg, ...) في بطاقات لوحتي العضو والمدير الجديدتين ── */
+  --kpi-blue-1:   #3b5bdb; --kpi-blue-2:   #6c8cff;
+  --kpi-green-1:  #0ca678; --kpi-green-2:  #2fe0ae;
+  --kpi-purple-1: #6a45c2; --kpi-purple-2: #9b7ae0;
+  --kpi-orange-1: #e8631f; --kpi-orange-2: #ff9d52;
+  --kpi-gold-1:   #c07c0a; --kpi-gold-2:   #f7c94c;
+
   --header-bg:   #1e3a5f;
   --header-text: #ffffff;
 

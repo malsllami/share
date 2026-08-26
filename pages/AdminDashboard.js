@@ -13,7 +13,15 @@ import { fillTemplate, buildWhatsAppLink } from '../utils/template.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
 import { renderMemberAssociationsView } from './MemberDashboard.js';
 import { renderBottomNavHtml, wireBottomNav, updateBottomNavActive } from '../components/BottomNav.js';
+import { renderDonutHtml, renderLineChartHtml } from '../components/Charts.js';
 import { ICONS } from '../utils/icons.js';
+
+// أيقونة كل تبويب — تُستخدم فقط في العرض الجانبي على الشاشات الأوسع من الجوال (انظر .admin-shell
+// بـ styles/components.css)؛ الشريط الأفقي/التنقّل السفلي على الجوال لا يتأثران بهذا إطلاقاً
+const TAB_ICONS = {
+  overview: ICONS.home, 'my-associations': ICONS.building, associations: ICONS.building,
+  members: ICONS.people, settings: ICONS.gear, archive: ICONS.archive,
+};
 
 // المدير عضو في نفس النظام بنفس الوقت (رقم جواله مسجَّل كعضو أيضاً) — تبويب "جمعياتي" يتيح له
 // الاشتراك واختيار رغباته الخاصة تماماً كأي عضو آخر، بجانب صلاحياته الإدارية في بقية التبويبات.
@@ -36,8 +44,10 @@ let activeTabToken_ = 0;
 export async function renderAdminDashboard(root, { session, onLogout }) {
   root.innerHTML = renderAppHeader({ memberName: session.memberName, isAdmin: true }) +
     '<div class="container" style="padding-top:22px">' +
-      '<div class="tabs" id="admin-tabs"></div>' +
-      '<div id="admin-content"></div>' +
+      '<div class="admin-shell">' +
+        '<div class="tabs" id="admin-tabs"></div>' +
+        '<div id="admin-content" class="admin-main"></div>' +
+      '</div>' +
     '</div>' +
     renderBottomNavHtml(); // يظهر فقط على الجوال (عبر CSS) — طابع تطبيق جوال حقيقي بشريط تنقّل ثابت
   wireHeaderEvents(root, onLogout);
@@ -58,60 +68,182 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
     else if (tabId === 'archive') showArchiveTab(content, isStale);
   }
 
-  tabsEl.innerHTML = TABS.map(t => '<button class="tab-btn" data-tab="' + t.id + '">' + t.label + '</button>').join('');
+  tabsEl.innerHTML = TABS.map(t =>
+    '<button class="tab-btn" data-tab="' + t.id + '"><span class="tab-btn-icon">' + (TAB_ICONS[t.id] || '') + '</span><span>' + t.label + '</span></button>'
+  ).join('');
   tabsEl.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => activate(b.dataset.tab)));
   wireBottomNav(root, activate);
   activate('overview');
 }
 
 /* ══════════════════ نظرة عامة ══════════════════ */
+// بطاقة مؤشر متدرّجة صغيرة — أيقونة بيضاء شبه شفافة + رقم بارز + تسمية، تُبنى فوق .stat-card
+// الموجودة أصلاً (blue/gold/green/purple + orange الجديد) بدل بطاقات مسطّحة بيضاء/سوداء بلا تمييز
+function statCard(color, iconSvg, value, label) {
+  return (
+    '<div class="stat-card ' + color + '">' +
+      '<div style="color:#fff;opacity:.85">' + iconSvg + '</div>' +
+      '<div class="n" style="margin-top:8px">' + value + '</div>' +
+      '<div class="l">' + label + '</div>' +
+    '</div>'
+  );
+}
+
+// قائمة أعضاء مشتركين فقط في جمعية معيّنة (باقي الأعضاء غير المشتركين فيها لا يظهرون هنا إطلاقاً) —
+// من getSubscriptions({assocId}) الموجودة أصلاً، بلا أي دالة خادم جديدة
+async function openSubscribedMembersModal(assoc, members) {
+  let subs;
+  try {
+    subs = await callApi('getSubscriptions', { assocId: assoc.id });
+  } catch (err) {
+    showToast(err.message, 'error');
+    return;
+  }
+  const memberById = new Map(members.map(m => [m.id, m]));
+  openModal({
+    title: 'أعضاء المشتركين — ' + assoc.name,
+    bodyHtml: subs.length === 0
+      ? '<p class="table-empty">لا يوجد أعضاء مشتركون في هذه الجمعية بعد</p>'
+      : '<div class="sub-member-list">' + subs.map(s => {
+          const full = memberById.get(s.memberId);
+          return (
+            '<div class="sub-member-row">' +
+              '<div><div class="name">' + s.memberName + '</div>' +
+                '<div class="meta">' + (full ? formatPhoneDisplay(full.phone) : '') + '</div></div>' +
+              '<div class="shares">' + formatNumber(s.sharesCount) + ' سهم</div>' +
+            '</div>'
+          );
+        }).join('') + '</div>',
+  });
+}
+
+// بطاقتا "الجمعية النشطة" (بأيقونة أعضاء مشتركين) و"الجمعية الجديدة" — الزوج الوحيد المتوقَّع عملياً
+// في نفس الوقت (انظر تسلسل الحالات في MonthClosing.gs) — أي حالة استثنائية أكثر تبقى مرئية بالكامل
+// من تبويب "إدارة الجمعيات" العادي بلا أي تغيير
+function buildTwoAssocCardsHtml(activeAssoc, freshAssoc, activeSummary) {
+  const activeCard = activeAssoc ? (
+    '<div class="card">' +
+      '<div class="flex-between">' +
+        '<div class="card-title" style="margin:0">' + activeAssoc.name + '</div>' +
+        '<div class="flex-between" style="gap:8px">' +
+          '<button class="mini-icon-btn" id="ov-sub-members-btn" title="أعضاء المشتركين في الجمعية">' + ICONS.people + '</button>' +
+          '<span class="badge badge-success">نشطة</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="fin-summary mt-16">' +
+        '<div class="fin-summary-card success"><div class="fin-summary-title"><span class="fin-dot"></span>تم</div>' +
+          '<div class="fin-summary-cols">' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">تحصيل</div><div class="fin-summary-val">' + formatCurrency(activeSummary.collectionDone) + '</div></div>' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">تسليم</div><div class="fin-summary-val">' + formatCurrency(activeSummary.deliveryDone) + '</div></div>' +
+          '</div></div>' +
+        '<div class="fin-summary-card warning"><div class="fin-summary-title"><span class="fin-dot"></span>متبقٍ</div>' +
+          '<div class="fin-summary-cols">' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">تحصيل</div><div class="fin-summary-val">' + formatCurrency(activeSummary.collectionRemaining) + '</div></div>' +
+            '<div class="fin-summary-col"><div class="fin-summary-label">تسليم</div><div class="fin-summary-val">' + formatCurrency(activeSummary.deliveryRemaining) + '</div></div>' +
+          '</div></div>' +
+      '</div>' +
+    '</div>'
+  ) : '<div class="card"><div class="card-title">الجمعية النشطة</div><p class="table-empty">لا توجد جمعية نشطة حالياً</p></div>';
+
+  const freshCard = freshAssoc ? (
+    '<div class="card">' +
+      '<div class="flex-between"><div class="card-title" style="margin:0">' + freshAssoc.name + '</div><span class="badge badge-gold">جديدة</span></div>' +
+      '<div class="assoc-meta mt-16">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">المشتركون</div><div class="assoc-meta-val">' + formatNumber(freshAssoc.memberCount) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(freshAssoc.shareValue) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">المدة</div><div class="assoc-meta-val">' + freshAssoc.duration + ' شهر</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">تاريخ البداية</div><div class="assoc-meta-val" style="font-size:11px">' + formatDualDate(freshAssoc.startDate).gregorian + '</div></div>' +
+      '</div>' +
+    '</div>'
+  ) : (
+    '<div class="card text-center"><div class="card-title">الجمعية الجديدة</div>' +
+      '<p style="color:var(--text-3);margin-bottom:12px">لا توجد جمعية جديدة قيد التجهيز حالياً</p>' +
+      '<button class="btn btn-gold btn-sm" id="ov-create-fresh-btn">+ إنشاء جمعية جديدة</button></div>'
+  );
+
+  return '<div class="section-title">نظرة على الجمعيتين</div><div class="grid grid-2" style="margin-bottom:18px">' + activeCard + freshCard + '</div>';
+}
+
+function renderActivityFeedHtml(activity) {
+  if (!activity || activity.length === 0) return '<p class="table-empty">لا توجد أنشطة مسجَّلة بعد</p>';
+  return activity.map(e =>
+    '<div class="activity-row"><span class="dot"></span><span class="txt">' + e.text + '</span>' +
+      '<span class="time">' + formatDualDate(e.date).gregorian + '</span></div>'
+  ).join('');
+}
+
 async function showOverviewTab(content, activate, session, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  // استدعاء واحد فقط بدل 3+2×عدد الجمعيات الجارية (كان يُنتج عشرات الطلبات المتزامنة ويُبطئ فتح
-  // اللوحة أحياناً لدقائق) — كل الحلقة تنفَّذ الآن داخل الخادم عبر getOverviewBundle (Associations.gs)
+  // نداء واحد لحزمة "نظرة عامة" (كما كان)، ثم نداءان إضافيان اختياريان فقط عند وجود جمعية نشطة
+  // (رسمَي أداء التحصيل/التسليم وتوزيع الرغبات يخصّان الجمعية النشطة تحديداً) — لا نداء جديد على
+  // الخادم بالمعنى الحرفي: الثلاثة (getMonthsWithTotals/getMonthsConfirmationSummary/getRecentActivity)
+  // دوال موجودة أصلاً أو مضافة بشكل حيادي بحت (انظر gas/Activity.gs)
   let bundle;
   try {
     bundle = await callApi('getOverviewBundle');
   } catch (err) {
-    if (isStale && isStale()) return; // المدير انتقل لتبويب آخر أثناء الانتظار — لا داعي لعرض خطأ فوق تبويب غير هذا
+    if (isStale && isStale()) return;
     content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
     return;
   }
   if (isStale && isStale()) return;
 
-  const { associations, members, reqCount, monthsByAssoc, summaryByAssoc } = bundle;
-  // "الجارية" (للعرض كبطاقات فردية أدناه) تشمل جديدة+نشطة كما كانت — كل بطاقة تعرض بيانات جمعيتها
-  // هي فقط، فلا تداخل هناك أصلاً. لكن الإجماليات المُجمَّعة (عداد التسليم الكلي/إجماليات الاشتراكات)
-  // تُحسب الآن من "نشطة" فقط — جمعية "جديدة" لم يُغلق شهرها الأول بعد، فخلط أرقامها مع جمعية نشطة
-  // فعلياً في رقم واحد مُجمَّع كان يُنتج مبلغاً مضلِّلاً لا يعكس التحصيل/التسليم المستحق الآن فعلياً.
+  const { associations, members, summaryByAssoc } = bundle;
   const activeAssociations = associations.filter(a => a.status !== 'منتهية');
-  const financiallyActiveAssociations = associations.filter(a => a.status === 'نشطة');
   const activeMembers = members.filter(m => m.status === 'نشط');
+  const activeAssoc = associations.find(a => a.status === 'نشطة') || null;
+  const freshAssoc = associations.find(a => a.status === 'جديدة') || null;
+  const activeSummary = activeAssoc ? summaryByAssoc[activeAssoc.id] : null;
 
-  let totalDeliveryExpected = 0, totalDeliveryDone = 0;
-  let totalSubscriptionValue = 0, totalSubscribedMembers = 0;
-  financiallyActiveAssociations.forEach(a => {
-    const s = summaryByAssoc[a.id];
-    totalDeliveryExpected += s.deliveryExpected;
-    totalDeliveryDone += s.deliveryDone;
-  });
-  financiallyActiveAssociations.forEach(a => {
-    totalSubscriptionValue += (Number(a.totalShares) || 0) * a.shareValue * a.duration;
-    totalSubscribedMembers += Number(a.memberCount) || 0;
-  });
-  const totalDeliveryRemaining = Math.max(0, totalDeliveryExpected - totalDeliveryDone);
-  const deliveryPercent = totalDeliveryExpected > 0 ? Math.round((totalDeliveryDone / totalDeliveryExpected) * 100) : 0;
+  let activity = [], monthTotals = [], confirmSummary = {};
+  try {
+    [activity, monthTotals, confirmSummary] = await Promise.all([
+      callApi('getRecentActivity').catch(() => []),
+      activeAssoc ? callApi('getMonthsWithTotals', { assocId: activeAssoc.id }) : Promise.resolve([]),
+      activeAssoc ? callApi('getMonthsConfirmationSummary', { assocId: activeAssoc.id }) : Promise.resolve({}),
+    ]);
+  } catch (err) { /* الرسوم/الأنشطة تكميلية — فشلها لا يمنع عرض بقية اللوحة */ }
+  if (isStale && isStale()) return;
+
+  const combinedExpected = activeSummary ? activeSummary.collectionExpected + activeSummary.deliveryExpected : 0;
+  const combinedDone = activeSummary ? activeSummary.collectionDone + activeSummary.deliveryDone : 0;
+  const commitmentPercent = combinedExpected > 0 ? Math.round((combinedDone / combinedExpected) * 100) : 0;
+
+  // رسم دائري: كم شهراً من مدة الجمعية النشطة له رغبات موزَّعة فعلاً (usedRiyal > 0) — من نفس بيانات
+  // getMonthsWithTotals المستخدَمة أصلاً بشاشة "الأشهر"، لا حساب جديد منفصل
+  const donutColors = ['var(--kpi-blue-1)', 'var(--kpi-green-1)', 'var(--kpi-purple-1)', 'var(--kpi-orange-1)', 'var(--kpi-gold-1)', 'var(--indigo-l)'];
+  const donutSegments = monthTotals.map((m, i) => ({ label: 'شهر ' + formatNumber(m.monthNum), value: Number(m.usedRiyal) || 0, color: donutColors[i % donutColors.length] }));
+  const monthsWithWishes = monthTotals.filter(m => Number(m.usedRiyal) > 0).length;
+  const donutHtml = activeAssoc
+    ? renderDonutHtml(donutSegments, formatNumber(monthsWithWishes), 'من ' + formatNumber(activeAssoc.duration) + ' شهر لها رغبات')
+    : '<p class="table-empty">لا توجد جمعية نشطة لعرض توزيع رغباتها</p>';
+
+  // رسم خطي: تحصيل/تسليم "تم" فعلياً (تشيك بوكس مؤكَّد) لكل شهر من getMonthsConfirmationSummary
+  // الموجودة أصلاً بشاشة "الأشهر" — بلا أي تجميع جديد عبر التقويم
+  const lineLabels = monthTotals.map(m => formatNumber(m.monthNum));
+  const lineHtml = activeAssoc && monthTotals.length ? renderLineChartHtml([
+    { label: 'تحصيل', color: 'var(--indigo)', data: monthTotals.map(m => (confirmSummary[m.monthNum] || {}).collectionDone || 0) },
+    { label: 'تسليم', color: 'var(--orange)', data: monthTotals.map(m => (confirmSummary[m.monthNum] || {}).deliveryDone || 0) },
+  ], lineLabels) : '<p class="table-empty">لا يوجد أداء لعرضه بعد</p>';
 
   content.innerHTML =
-    // ١) بطاقة إحصائيات سريعة — صف واحد مكدَّس (رقم + تسمية) بدل 3 بطاقات منفصلة
-    '<div class="card stat-list mt-16" style="margin-bottom:18px">' +
-      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(activeAssociations.length) + '</span><span class="stat-list-label">الجمعيات الجارية</span></div>' +
-      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(activeMembers.length) + '</span><span class="stat-list-label">الأعضاء النشطون</span></div>' +
-      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(reqCount.today) + '</span><span class="stat-list-label">طلبات السكربت اليوم</span></div>' +
-      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(reqCount.week) + '</span><span class="stat-list-label">طلبات السكربت آخر 7 أيام</span></div>' +
+    // ١) صف مؤشرات KPI متدرّجة — بدل بطاقات "مكدَّسة" بيضاء/سوداء بلا تمييز
+    '<div class="section-title">المؤشرات العامة</div>' +
+    '<div class="grid grid-3" style="margin-bottom:18px">' +
+      statCard('blue', ICONS.people, formatNumber(activeMembers.length), 'الأعضاء النشطون') +
+      statCard('green', ICONS.wallet, formatCurrency(activeSummary ? activeSummary.collectionDone : 0), 'إجمالي التحصيل — الجمعية النشطة') +
+      statCard('purple', ICONS.handoff, formatCurrency(activeSummary ? activeSummary.deliveryDone : 0), 'إجمالي التسليم — الجمعية النشطة') +
+      statCard('gold', ICONS.building, formatNumber(activeAssociations.length), 'الجمعيات الجارية') +
+      statCard('orange', ICONS.target, commitmentPercent + '٪', 'مستوى الالتزام — الجمعية النشطة') +
     '</div>' +
 
-    // ٢) إجراءات سريعة — اختصارات لأكثر عمليتين يومية (إنشاء جمعية/إضافة عضو) + تنقّل مباشر
+    // ٢) رسمان بيانيان — توزيع الرغبات (دائري) وأداء التحصيل/التسليم (خطي)
+    '<div class="grid grid-2" style="margin-bottom:18px">' +
+      '<div class="card"><div class="card-title">' + ICONS.donut + ' توزيع الرغبات على الأشهر</div>' + donutHtml + '</div>' +
+      '<div class="card"><div class="card-title">' + ICONS.chart + ' أداء التحصيل والتسليم</div>' + lineHtml + '</div>' +
+    '</div>' +
+
+    // ٣) إجراءات سريعة (كما كانت)
     '<div class="section-title">إجراءات سريعة</div>' +
     '<div class="quick-actions" style="margin-bottom:18px">' +
       '<button class="quick-action-btn" id="qa-create-assoc"><span class="qa-icon">' + ICONS.plus + '</span>إنشاء جمعية</button>' +
@@ -120,29 +252,12 @@ async function showOverviewTab(content, activate, session, isStale) {
       '<button class="quick-action-btn" id="qa-goto-members"><span class="qa-icon">' + ICONS.people + '</span>الأعضاء</button>' +
     '</div>' +
 
-    // ٣) عداد التسليم الكلي — بطاقة موحَّدة (رقم إجمالي + تقسيم بعمودين + شريط تقدّم)، بدل 3 بطاقات
-    // فرعية متراصّة كانت تتجاوز حدود البطاقة الأساسية بصرياً على الجوال
-    '<div class="section-title">عداد التسليم الكلي — الجمعية النشطة</div>' +
-    '<div class="card delivery-counter" style="margin-bottom:18px">' +
-      '<div class="dc-total"><div class="dc-total-val">' + formatCurrency(totalDeliveryExpected) + '</div><div class="dc-total-label">الإجمالي المستحق تسليمه</div></div>' +
-      '<div class="dc-split">' +
-        '<div class="dc-split-item"><div class="dc-split-val" style="color:var(--success)">' + formatCurrency(totalDeliveryDone) + '</div><div class="dc-split-label">تم تسليمه</div></div>' +
-        '<div class="dc-split-divider"></div>' +
-        '<div class="dc-split-item"><div class="dc-split-val" style="color:var(--warning)">' + formatCurrency(totalDeliveryRemaining) + '</div><div class="dc-split-label">المتبقي</div></div>' +
-      '</div>' +
-      '<div class="progress-wrap primary mt-16">' + renderProgressBarHtml(deliveryPercent, 'success') +
-        '<div class="progress-label"><span>نسبة الإنجاز</span><span>' + deliveryPercent + '٪</span></div></div>' +
-    '</div>' +
+    // ٤) الجمعية النشطة (بأيقونة أعضاء مشتركين) + الجمعية الجديدة
+    buildTwoAssocCardsHtml(activeAssoc, freshAssoc, activeSummary) +
 
-    // ٤) إجماليات الاشتراكات — بنفس أسلوب بطاقة الإحصائيات المكدَّسة أعلاه
-    '<div class="card stat-list" style="margin-bottom:18px">' +
-      '<div class="stat-list-row"><span class="stat-list-val">' + formatCurrency(totalSubscriptionValue) + '</span><span class="stat-list-label">إجمالي قيمة اشتراكات الجمعية النشطة</span></div>' +
-      '<div class="stat-list-row"><span class="stat-list-val">' + formatNumber(totalSubscribedMembers) + '</span><span class="stat-list-label">إجمالي اشتراكات الجمعية النشطة</span></div>' +
-    '</div>' +
-
-    // ٥) الجمعيات الجارية — بكل تفاصيلها الحالية كاملة دون حذف أي معلومة
-    '<div class="section-title">الجمعيات الجارية</div>' +
-    '<div class="grid grid-2" id="overview-assoc-list"></div>';
+    // ٥) أحدث الأنشطة — حقيقية بالكامل من gas/Activity.gs
+    '<div class="section-title">أحدث الأنشطة</div>' +
+    '<div class="card" style="margin-bottom:18px"><div class="activity-feed">' + renderActivityFeedHtml(activity) + '</div></div>';
 
   content.querySelector('#qa-create-assoc').addEventListener('click', () => {
     activate('associations');
@@ -155,37 +270,12 @@ async function showOverviewTab(content, activate, session, isStale) {
   content.querySelector('#qa-goto-assoc').addEventListener('click', () => activate('associations'));
   content.querySelector('#qa-goto-members').addEventListener('click', () => activate('members'));
 
-  const list = content.querySelector('#overview-assoc-list');
-  if (activeAssociations.length === 0) { list.innerHTML = '<p class="table-empty">لا توجد جمعية جارية حالياً</p>'; return; }
-
-  activeAssociations.forEach((a) => {
-    const months = monthsByAssoc[a.id];
-    const s = summaryByAssoc[a.id];
-    const closedCount = months.filter(m => m.closed).length;
-    const prog = computeDurationProgress(a.startDate, a.endDate, a.duration);
-    const dual = formatDualDate(a.endDate);
-    const totalValue = (Number(a.totalShares) || 0) * a.shareValue * a.duration;
-
-    const el = document.createElement('div');
-    el.className = 'assoc-card status-' + a.status;
-    el.innerHTML =
-      '<div class="flex-between"><div class="assoc-name">' + a.name + '</div><span class="badge badge-' + (a.status === 'نشطة' ? 'success' : 'gold') + '">' + a.status + '</span></div>' +
-      '<div class="assoc-meta">' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">المشتركون</div><div class="assoc-meta-val">' + formatNumber(a.memberCount) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">إجمالي قيمة الاشتراكات</div><div class="assoc-meta-val">' + formatCurrency(totalValue) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">الأشهر المغلقة</div><div class="assoc-meta-val">' + formatNumber(closedCount) + ' / ' + formatNumber(a.duration) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">تنتهي</div><div class="assoc-meta-val" style="font-size:11px">' + dual.gregorian + '</div></div>' +
-      '</div>' +
-      '<div class="capacity-bar-wrap">' + renderProgressBarHtml(prog.percent) +
-        '<div class="capacity-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' من ' + formatNumber(a.duration) + ' شهر (' + prog.percent + '٪)</span>' +
-        '<span>متبقٍ ' + formatNumber(prog.remainingDays) + ' يوم</span></div></div>' +
-      '<div class="grid grid-2 mt-16" style="gap:8px">' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(s.collectionDone) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — تم</div><div class="assoc-meta-val" style="color:var(--success)">' + formatCurrency(s.deliveryDone) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">تحصيل — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(s.collectionRemaining) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">تسليم — متبقٍ</div><div class="assoc-meta-val" style="color:var(--warning)">' + formatCurrency(s.deliveryRemaining) + '</div></div>' +
-      '</div>';
-    list.appendChild(el);
+  const subMembersBtn = content.querySelector('#ov-sub-members-btn');
+  if (subMembersBtn) subMembersBtn.addEventListener('click', () => openSubscribedMembersModal(activeAssoc, members));
+  const createFreshBtn = content.querySelector('#ov-create-fresh-btn');
+  if (createFreshBtn) createFreshBtn.addEventListener('click', () => {
+    activate('associations');
+    openAddAssociationModal(() => showAssociationsTab(content, session));
   });
 }
 
@@ -294,21 +384,26 @@ async function showMembersTab(content, isStale) {
       '<div class="section-title" style="margin:0">الأعضاء</div>' +
       '<button class="btn btn-gold btn-sm" id="add-member-btn">+ إضافة عضو</button>' +
     '</div>' +
-    '<div class="table-wrap"><table><thead><tr><th>الاسم</th><th>الجوال</th><th>الحالة</th><th></th></tr></thead><tbody id="members-body"></tbody></table></div>';
+    '<div class="table-wrap"><table><thead><tr><th>الاسم</th><th>الجوال</th><th>الحالة</th><th>ملاحظات</th><th></th></tr></thead><tbody id="members-body"></tbody></table></div>';
 
   const body = content.querySelector('#members-body');
-  if (members.length === 0) body.innerHTML = '<tr><td colspan="4" class="table-empty">لا يوجد أعضاء بعد</td></tr>';
+  if (members.length === 0) body.innerHTML = '<tr><td colspan="5" class="table-empty">لا يوجد أعضاء بعد</td></tr>';
   members.forEach(m => {
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td>' + m.name + '</td><td>' + formatPhoneDisplay(m.phone) + '</td>' +
       '<td><span class="badge badge-' + (m.status === 'نشط' ? 'success' : 'danger') + '">' + m.status + '</span></td>' +
-      '<td><button class="btn btn-outline btn-sm toggle-status-btn">' + (m.status === 'نشط' ? 'إيقاف' : 'تفعيل') + '</button></td>';
+      '<td style="max-width:180px;white-space:normal">' + (m.notes ? m.notes : '<span style="color:var(--text-3)">—</span>') + '</td>' +
+      '<td>' +
+        '<button class="btn btn-outline btn-sm toggle-status-btn">' + (m.status === 'نشط' ? 'إيقاف' : 'تفعيل') + '</button> ' +
+        '<button class="btn btn-outline btn-sm edit-note-btn">' + (m.notes ? 'تعديل الملاحظة' : '+ ملاحظة') + '</button>' +
+      '</td>';
     const toggleBtn = tr.querySelector('.toggle-status-btn');
     toggleBtn.addEventListener('click', withButtonLoading(toggleBtn, async () => {
       await callApi('setMemberStatus', { memberId: m.id, status: m.status === 'نشط' ? 'موقوف' : 'نشط', identityToken: getIdentityToken() });
       showMembersTab(content);
     }));
+    tr.querySelector('.edit-note-btn').addEventListener('click', () => openMemberNoteModal(m, () => showMembersTab(content)));
     body.appendChild(tr);
   });
 
@@ -336,6 +431,50 @@ function openAddMemberModal(onDone) {
           await callApi('addMember', { name: modal.querySelector('#m-name').value, phone, identityToken: getIdentityToken() });
           closeModal();
           showToast('تمت إضافة العضو', 'success');
+          onDone();
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+        }
+      }));
+    },
+  });
+}
+
+// ملاحظة المدير على عضو — نص حرّ للتذكير فقط، تظهر للعضو نفسه بلوحته (قراءة فقط) ولا تدخل في أي
+// حساب تحصيل/تسليم/رغبات إطلاقاً — مثال: "المتبقي من تحصيل شهر 5 يُستلم يدوياً لاحقاً"
+function openMemberNoteModal(member, onDone) {
+  openModal({
+    title: 'ملاحظة — ' + member.name,
+    bodyHtml:
+      '<p class="form-hint" style="margin-bottom:12px">تذكير نصّي يظهر للعضو في لوحته — لا يدخل في أي حساب أو منطق بالنظام</p>' +
+      '<div class="form-group"><textarea id="note-text" class="form-control" rows="4" style="font-family:inherit" placeholder="مثال: المتبقي من تحصيل شهر 5 يُستلم يدوياً لاحقاً">' + (member.notes || '') + '</textarea></div>' +
+      '<div class="form-error hidden" id="note-error"></div>' +
+      '<div class="flex-between" style="gap:8px">' +
+        (member.notes ? '<button class="btn btn-outline btn-block" id="note-clear">حذف الملاحظة</button>' : '') +
+        '<button class="btn btn-gold btn-block" id="note-save">حفظ</button>' +
+      '</div>',
+    onMount: (modal) => {
+      const errEl = modal.querySelector('#note-error');
+      const saveBtn = modal.querySelector('#note-save');
+      saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
+        errEl.classList.add('hidden');
+        try {
+          await callApi('updateMember', { id: member.id, notes: modal.querySelector('#note-text').value, identityToken: getIdentityToken() });
+          closeModal();
+          showToast('تم حفظ الملاحظة', 'success');
+          onDone();
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+        }
+      }));
+      const clearBtn = modal.querySelector('#note-clear');
+      if (clearBtn) clearBtn.addEventListener('click', withButtonLoading(clearBtn, async () => {
+        try {
+          await callApi('updateMember', { id: member.id, notes: '', identityToken: getIdentityToken() });
+          closeModal();
+          showToast('تم حذف الملاحظة', 'success');
           onDone();
         } catch (err) {
           errEl.textContent = err.message;

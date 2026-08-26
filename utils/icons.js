@@ -17,6 +17,14 @@ export const ICONS = {
   gear: icon('<circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.6 7.6 0 000-3l2-1.5-2-3.4-2.3.9a7.5 7.5 0 00-2.6-1.5L14 2h-4l-.5 2.5A7.5 7.5 0 006.9 6l-2.3-.9-2 3.4 2 1.5a7.6 7.6 0 000 3l-2 1.5 2 3.4L6.9 18a7.5 7.5 0 002.6 1.5L10 22h4l.5-2.5A7.5 7.5 0 0017.1 18l2.3.9 2-3.4z"/>'),
   archive: icon('<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4"/>'),
   wallet: icon('<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M15.5 14h2.5"/>'),
+  bell: icon('<path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/>'),
+  target: icon('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>'),
+  calendar: icon('<rect x="3.5" y="5" width="17" height="16" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17"/>'),
+  pencil: icon('<path d="M4 20l.9-4.2L16.6 4.1a1.5 1.5 0 0 1 2.1 0l1.2 1.2a1.5 1.5 0 0 1 0 2.1L8.2 19.1 4 20Z"/>'),
+  donut: icon('<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.8"/><path d="M12 3.5A8.5 8.5 0 0 1 20.5 12" stroke-width="3"/>'),
+  device: icon('<rect x="7" y="3" width="10" height="18" rx="2.2"/><path d="M11 18h2"/>'),
+  peopleCheck: icon('<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6.5 6.5-6.5s6.5 2.9 6.5 6.5"/><path d="M15.5 12.5l2 2 3.5-4"/>'),
+  handoff: icon('<path d="M3 12h11M11 7l4 5-4 5"/><path d="M21 7v10"/>'),
 
   // ── أيقونات الدخول بالبصمة — تُختار حسب نوع الجهاز (انظر guessBiometricKind في pages/Login.js) ──
   // رسم بصمة إصبع واقعي (خطوط الحلقات المتداخلة) بدل الشكل المشوَّه السابق

@@ -94,6 +94,9 @@ export async function renderMemberAssociationsView(content, session, isStale) {
           '<div class="mpc-stat"><div class="mpc-stat-val">' + formatNumber(totalShares) + '</div><div class="mpc-stat-label">إجمالي أسهمي</div></div>' +
           '<div class="mpc-stat"><div class="mpc-stat-val">' + formatCurrency(totalEntitlement) + '</div><div class="mpc-stat-label">إجمالي استحقاقي</div></div>' +
         '</div>' +
+        // ملاحظة المدير — نص تذكيري يدوي بحت (مثال: "المتبقي من تحصيل شهر 5 يُستلم يدوياً لاحقاً")؛
+        // لا تدخل في أي حساب بالصفحة، وتظهر فقط إن كتبها المدير فعلاً من لوحته (انظر Members.gs)
+        (me && me.notes ? '<div class="member-note-banner">ملاحظة من المدير: ' + me.notes + '</div>' : '') +
       '</div>' +
     '</div>';
 
