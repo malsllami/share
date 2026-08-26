@@ -15,6 +15,7 @@ import { renderMemberAssociationsView } from './MemberDashboard.js';
 import { renderBottomNavHtml, wireBottomNav, updateBottomNavActive } from '../components/BottomNav.js';
 import { renderDonutHtml, renderLineChartHtml } from '../components/Charts.js';
 import { ICONS } from '../utils/icons.js';
+import { escapeHtml } from '../utils/sanitize.js';
 
 // المدير عضو في نفس النظام بنفس الوقت (رقم جواله مسجَّل كعضو أيضاً) — تبويب "جمعياتي" يتيح له
 // الاشتراك واختيار رغباته الخاصة تماماً كأي عضو آخر، بجانب صلاحياته الإدارية في بقية التبويبات.
@@ -191,7 +192,7 @@ function buildTwoAssocCardsHtml(activeAssoc, freshAssoc, activeSummary) {
 function renderActivityFeedHtml(activity) {
   if (!activity || activity.length === 0) return '<p class="table-empty">لا توجد أنشطة مسجَّلة بعد</p>';
   return activity.map(e =>
-    '<div class="activity-row"><span class="dot"></span><span class="txt">' + e.text + '</span>' +
+    '<div class="activity-row"><span class="dot"></span><span class="txt">' + escapeHtml(e.text) + '</span>' +
       '<span class="time">' + formatDualDate(e.date).gregorian + '</span></div>'
   ).join('');
 }
@@ -347,12 +348,12 @@ async function showSettingsTab(content, isStale) {
     '</div>' +
     '<div class="card mt-16" style="max-width:520px">' +
       '<div class="card-title">نص رسالة واتساب — تأكيد التحصيل</div>' +
-      '<div class="form-group"><textarea id="s-msg-collection" class="form-control" rows="6" style="font-family:inherit">' + s.collectionMessage + '</textarea>' +
+      '<div class="form-group"><textarea id="s-msg-collection" class="form-control" rows="6" style="font-family:inherit">' + escapeHtml(s.collectionMessage) + '</textarea>' +
         '<div class="form-hint">الرموز المتاحة: ' + MESSAGE_PLACEHOLDER_HINTS.collection + '</div></div>' +
     '</div>' +
     '<div class="card mt-16" style="max-width:520px">' +
       '<div class="card-title">نص رسالة واتساب — تأكيد التسليم</div>' +
-      '<div class="form-group"><textarea id="s-msg-delivery" class="form-control" rows="8" style="font-family:inherit">' + s.deliveryMessage + '</textarea>' +
+      '<div class="form-group"><textarea id="s-msg-delivery" class="form-control" rows="8" style="font-family:inherit">' + escapeHtml(s.deliveryMessage) + '</textarea>' +
         '<div class="form-hint">الرموز المتاحة: ' + MESSAGE_PLACEHOLDER_HINTS.delivery + '</div></div>' +
       '<div class="form-error hidden" id="s-msg-error"></div>' +
       '<button class="btn btn-gold btn-block" id="s-msg-save">حفظ نصوص الرسائل</button>' +

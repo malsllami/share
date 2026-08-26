@@ -9,7 +9,7 @@
 //
 // ⚠️ يجب رفع رقم CACHE_NAME (v2, v3...) مع أي تعديل على أي ملف مذكور في SHELL_FILES، وإلا فقد لا
 // تُحدَّث نسخة الكاش الاحتياطية القديمة أبداً حتى لو تغيّر محتوى الملفات على الخادم.
-const CACHE_NAME = 'sahm-shell-v15';
+const CACHE_NAME = 'sahm-shell-v16';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -31,6 +31,7 @@ const SHELL_FILES = [
   './utils/template.js',
   './utils/dates.js',
   './utils/icons.js',
+  './utils/sanitize.js',
   './components/Toast.js',
   './components/Modal.js',
   './components/Header.js',

@@ -13,6 +13,7 @@ import { withButtonLoading, withCardLoading } from '../components/Button.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
 import { registerDeviceCredential, isWebAuthnSupported, describeWebAuthnError } from '../services/webauthn.js';
 import { markDeviceBiometricLinked, deviceHasBiometricLinked } from '../services/auth.js';
+import { escapeHtml } from '../utils/sanitize.js';
 import { guessDeviceName, guessBiometricKind, BIOMETRIC_META } from '../utils/deviceBiometric.js';
 import { RP_ID, RP_NAME } from '../config/config.js';
 import { renderDonutHtml } from '../components/Charts.js';
@@ -420,7 +421,7 @@ function renderDevicesList(container, session, devices) {
     row.className = 'card mt-16';
     row.innerHTML =
       '<div class="flex-between">' +
-        '<div class="nav-card-title">' + d.deviceName + '</div>' +
+        '<div class="nav-card-title">' + escapeHtml(d.deviceName) + '</div>' +
         '<span class="badge badge-' + (active ? 'success' : 'gray') + '">' + d.status + '</span>' +
       '</div>' +
       '<div class="assoc-meta mt-16">' +
