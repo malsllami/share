@@ -12,7 +12,7 @@ import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading, withCardLoading } from '../components/Button.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
 import { registerDeviceCredential, isWebAuthnSupported, describeWebAuthnError } from '../services/webauthn.js';
-import { markDeviceBiometricLinked, deviceHasBiometricLinked } from '../services/auth.js';
+import { markDeviceBiometricLinked, deviceHasBiometricLinked, clearDeviceBiometricLink } from '../services/auth.js';
 import { escapeHtml } from '../utils/sanitize.js';
 import { guessDeviceName, guessBiometricKind, BIOMETRIC_META } from '../utils/deviceBiometric.js';
 import { RP_ID, RP_NAME } from '../config/config.js';
@@ -330,8 +330,8 @@ function openDevicesModal(content, session, me, devices, isStale) {
     title: '📱 أجهزتي',
     bodyHtml: '<div id="link-device-section"></div><div id="devices-list"></div>',
     onMount: () => {
-      renderLinkDeviceSection(document.getElementById('link-device-section'), content, session, me, isStale);
-      renderDevicesList(document.getElementById('devices-list'), session, devices);
+      renderLinkDeviceSection(document.getElementById('link-device-section'), content, session, me, isStale, devices);
+      renderDevicesList(document.getElementById('devices-list'), session, devices, content, me, isStale);
     },
   });
 }
@@ -340,9 +340,16 @@ function openDevicesModal(content, session, me, devices, isStale) {
 // تخدم نفس الغرض عملياً (كلتاهما بصمة الجهاز)، فدُمجتا هنا في مدخل واحد. لا يظهر إطلاقاً إن كان
 // هذا المتصفح لا يدعم WebAuthn أصلاً — لا معنى لعرض خيار سيفشل حتماً. إن كانت مرتبطة أصلاً يُكتفى
 // بسطر تأكيد بلا زر (لا إعادة تسجيل غير ضرورية تُنشئ صفّ جهاز مكرَّراً في قاعدة البيانات بلا داعٍ)
-function renderLinkDeviceSection(el, content, session, me, isStale) {
+// devices (اختياري): قائمة أجهزة العضو الحقيقية من الخادم إن كانت متوفرة عند الاستدعاء — تُستخدَم
+// لتصحيح العلم المحلي ذاتياً إن بقي عالقاً على "مرتبطة" من جلسة سابقة رغم إلغاء آخر جهاز نشط فعلياً
+// (مثلاً قبل إضافة هذا التصحيح) بدل تصديقه أعمى وإخفاء زر الربط للأبد رغم عدم وجود أي بصمة فعلية
+function renderLinkDeviceSection(el, content, session, me, isStale, devices) {
   if (!isWebAuthnSupported()) { el.innerHTML = ''; return; }
   const bioMeta = BIOMETRIC_META[guessBiometricKind()];
+
+  if (Array.isArray(devices) && !devices.some(d => d.status === 'نشط')) {
+    clearDeviceBiometricLink();
+  }
 
   if (deviceHasBiometricLinked()) {
     el.innerHTML =
@@ -401,7 +408,7 @@ function renderLinkDeviceSection(el, content, session, me, isStale) {
     if (listEl) {
       try {
         const refreshed = await callApi('getMemberDevices', { memberId: session.memberId });
-        renderDevicesList(listEl, session, refreshed);
+        renderDevicesList(listEl, session, refreshed, content, me, isStale);
       } catch (err) { /* القائمة تبقى بحالتها القديمة إن فشل التحديث — الربط نفسه نجح فعلاً */ }
     }
   }));
@@ -409,7 +416,11 @@ function renderLinkDeviceSection(el, content, session, me, isStale) {
 
 // كل جهاز ببطاقة مستقلة: اسمه، تاريخ ربطه وآخر استخدام، وزر إلغاء لأي جهاز لا يزال نشطاً فقط
 // (جهاز مُلغى مسبقاً يظهر للتوثيق بلا زر — لا حذف فعلي للصف أبداً، سلامة بيانات)
-function renderDevicesList(container, session, devices) {
+// المعاملات الأخيرة (content, me, isStale) اختيارية — تُمرَّر فقط عند الاستدعاء من داخل نافذة
+// "أجهزتي" (حيث قسم "ربط جهاز" ظاهر بجانب القائمة) لإعادة رسمه فوراً إذا صار العضو بلا أي جهاز
+// نشط بعد الإلغاء؛ بدونها كانت العلم المحلي "مرتبطة بالفعل" يبقى عالقاً للأبد بعد إلغاء آخر جهاز،
+// فيختفي زر "ربط جهاز جديد" نهائياً رغم عدم وجود أي بصمة فعلية مرتبطة بعد الآن.
+function renderDevicesList(container, session, devices, content, me, isStale) {
   if (!devices.length) {
     container.innerHTML = '<p class="table-empty">لا توجد أجهزة مرتبطة بعد</p>';
     return;
@@ -446,7 +457,14 @@ function renderDevicesList(container, session, devices) {
         } catch (err) {
           return; // النافذة تبقى بحالتها القديمة إن فشل التحديث — لا خطأ فادح، الإلغاء نفسه نجح فعلاً
         }
-        renderDevicesList(container, session, refreshed);
+        // لم يعد للعضو أي جهاز نشط — نمسح العلم المحلي "مرتبطة بالفعل" فوراً ونعيد رسم قسم الربط
+        // بجانب القائمة، حتى يظهر زر "ربط جهاز جديد" مباشرة بلا حاجة لإغلاق النافذة أو إعادة تحميل الصفحة
+        if (!refreshed.some(x => x.status === 'نشط')) {
+          clearDeviceBiometricLink();
+          const linkSection = document.getElementById('link-device-section');
+          if (linkSection && content) renderLinkDeviceSection(linkSection, content, session, me, isStale);
+        }
+        renderDevicesList(container, session, refreshed, content, me, isStale);
       }));
     }
     container.appendChild(row);
