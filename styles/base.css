@@ -1,5 +1,8 @@
 /* الأساس العام — استرجاع، طباعة، تخطيط، واتجاه RTL (بتصميم مطابق لمشروع "جمعية عائلية" المرجعي) */
 * , *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+/* حجم افتراضي احتياطي لكل أيقونة SVG — يضمن ظهورها ولو نسيت إحدى الحاويات الجديدة تحديد حجمها
+   الخاص (خصوصاً على Safari/iOS التي تختفي عندها الأيقونات بلا حجم صريح) — أي قاعدة أخص تبقى تتحكم */
+.icon-svg { width: 20px; height: 20px; display: block; flex-shrink: 0; }
 html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
   font-family: "Noto Kufi Arabic", "Sora", sans-serif;
@@ -102,7 +105,7 @@ a { color: inherit; }
 
 /* بطاقة مؤشر (KPI) مصغَّرة — أيقونة داخل حلقة ملوّنة (مؤشر/Gauge) بدل شارة معبَّأة بالكامل، وحجم
    إجمالي أصغر (طلب محمد صراحةً: "تصغيرها" + "تتحول إلى مؤشر تفاعلي بالألوان") */
-.kpi-flat-card { border-radius: var(--radius-sm); padding: 11px; background: var(--surface); border: 1px solid var(--border); }
+.kpi-flat-card { border-radius: var(--radius-sm); padding: 12px; background: var(--surface); border: 1px solid var(--border); }
 .kpi-flat-card .n { font-family: 'Sora', sans-serif; font-size: 17px; font-weight: 800; color: var(--text); margin-top: 7px; }
 .kpi-flat-card .l { font-size: 10px; color: var(--text-3); margin-top: 2px; }
 .kpi-flat-icon {
@@ -121,10 +124,10 @@ a { color: inherit; }
 
 /* بطاقات KPI ذات النسبة الفعلية (الأسهم/المدفوعات/المستلمات) — حلقة conic-gradient حقيقية بلون
    ديناميكي حسب فئة النسبة (percentColor_)، بدل الأيقونة الثابتة العادية */
-.kpi-mini-ring { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
-.kpi-mini-ring-hole { width: 78%; height: 78%; border-radius: 50%; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.kpi-mini-ring-hole b { font-family: 'Sora', sans-serif; font-size: 10.5px; font-weight: 800; color: var(--text); line-height: 1.1; }
-.kpi-mini-ring-hole span { font-size: 7.5px; color: var(--text-3); }
+.kpi-mini-ring { width: 74px; height: 74px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+.kpi-mini-ring-hole { width: 80%; height: 80%; border-radius: 50%; background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.kpi-mini-ring-hole b { font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 800; color: var(--text); line-height: 1.15; }
+.kpi-mini-ring-hole span { font-size: 9px; color: var(--text-3); margin-top: 1px; }
 .kpi-ring-card .l { text-align: center; margin-top: 6px; }
 .kpi-ring-sub { font-size: 9.5px; color: var(--text-3); text-align: center; margin-top: 3px; line-height: 1.5; }
 /* سطر إحصاء فرعي أسفل بطاقات الأعداد البسيطة (الأعضاء/الجمعيات) — نقطة ملوّنة + نص صغير */

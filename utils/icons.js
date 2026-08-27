@@ -1,8 +1,12 @@
 // أيقونات SVG بسيطة موحَّدة الطابع (خطوط نحيفة، بلا تعبئة) بدل رموز الإيموجي — تحافظ على مظهر
 // احترافي ثابت تماماً عبر كل الأجهزة والمتصفحات (شكل الإيموجي يختلف حسب نظام التشغيل والخط المُثبَّت).
 
+// width/height صريحان (وليس CSS فقط) — يمنع اختفاء الأيقونات على Safari/iOS تحديداً: بعض إصدارات
+// Safari لا تُطبِّق حجم SVG داخل حاويات دائرية (border-radius:50%) إلا إذا وُجد سمة width/height
+// حقيقية بالعنصر نفسه؛ بدونها يظهر الإطار الدائري فارغاً بلا أيقونة رغم ظهورها طبيعياً على كروم.
+// أي قاعدة CSS لاحقة (.icon-svg { width:... }) تبقى تتحكّم بالحجم الفعلي كالمعتاد (الأولوية لها دائماً).
 function icon(paths) {
-  return '<svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  return '<svg class="icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
     'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
 }
 

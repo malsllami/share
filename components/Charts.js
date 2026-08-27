@@ -99,7 +99,7 @@ export function renderDonutHtml(segments, centerBig, centerSmall) {
 
 // قيمة مختصرة لتسميات نقاط الرسم فقط (17,500 → 17.5k) — لا تُستخدَم في أي مكان آخر بالموقع، فقط
 // هنا حيث تحتاج تسمية كل نقطة أن تكون قصيرة بما يكفي لتظهر فوق/تحت نقطتها بلا تراكب مزعج
-function compactValue_(v) {
+export function compactValue_(v) {
   const n = Number(v) || 0;
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'ك';
   return String(Math.round(n));

@@ -13,7 +13,7 @@ import { fillTemplate, buildWhatsAppLink } from '../utils/template.js';
 import { renderWishMonthPicker } from '../components/WishMonthPicker.js';
 import { renderMemberAssociationsView } from './MemberDashboard.js';
 import { renderBottomNavHtml, wireBottomNav, updateBottomNavActive, ADMIN_PRIMARY_ITEMS, ADMIN_MORE_ITEMS } from '../components/BottomNav.js';
-import { renderDonutHtml, renderLineChartHtml, percentColor_, renderStatRingHtml } from '../components/Charts.js';
+import { renderDonutHtml, percentColor_, renderStatRingHtml, compactValue_ } from '../components/Charts.js';
 import { ICONS } from '../utils/icons.js';
 import { escapeHtml } from '../utils/sanitize.js';
 
@@ -244,9 +244,9 @@ async function showOverviewTab(content, activate, session, isStale) {
         { color: 'var(--text-3)', text: formatNumber(members.length - activeMembers.length) + ' غير نشط' },
       ]) +
       kpiPlainCard_('gold', ICONS.wallet, formatCurrency(totalCapital), 'إجمالي رأس المال', null) +
-      kpiRingCard_(collectionPercent, formatCurrency(activeSummary ? activeSummary.collectionDone : 0), 'ريال', 'إجمالي المدفوعات',
+      kpiRingCard_(collectionPercent, compactValue_(activeSummary ? activeSummary.collectionDone : 0), 'ريال', 'إجمالي المدفوعات',
         'المتبقي ' + formatCurrency(activeSummary ? activeSummary.collectionRemaining : 0)) +
-      kpiRingCard_(deliveryPercent, formatCurrency(activeSummary ? activeSummary.deliveryDone : 0), 'ريال', 'إجمالي المستلمات',
+      kpiRingCard_(deliveryPercent, compactValue_(activeSummary ? activeSummary.deliveryDone : 0), 'ريال', 'إجمالي المستلمات',
         'المتبقي ' + formatCurrency(activeSummary ? activeSummary.deliveryRemaining : 0)) +
       kpiPlainCard_('purple', ICONS.building, formatNumber(associations.length), 'إجمالي الجمعيات', [
         { color: 'var(--success)', text: formatNumber(activeAssocsCount) + ' نشطة' },
@@ -327,13 +327,12 @@ async function showReportsTab(content, activate, isStale) {
   }
   const activeAssoc = associations.find(a => a.status === 'نشطة') || null;
 
-  let summary = null, monthTotals = [], confirmSummary = {};
+  let summary = null, monthTotals = [];
   if (activeAssoc) {
     try {
-      [summary, monthTotals, confirmSummary] = await Promise.all([
+      [summary, monthTotals] = await Promise.all([
         callApi('getAssociationFinancialSummary', { assocId: activeAssoc.id }),
         callApi('getMonthsWithTotals', { assocId: activeAssoc.id }),
-        callApi('getMonthsConfirmationSummary', { assocId: activeAssoc.id }),
       ]);
     } catch (err) { /* الملخص السريع/الرسوم تبقى فارغة إن فشلت — لا تمنع عرض شبكة التقارير نفسها */ }
   }
@@ -349,12 +348,16 @@ async function showReportsTab(content, activate, isStale) {
     ? renderDonutHtml(donutSegments, formatNumber(monthsWithWishes), 'من ' + formatNumber(activeAssoc.duration) + ' أشهر لها رغبات موزَّعة')
     : '<p class="table-empty">لا توجد جمعية نشطة لعرض توزيع رغباتها</p>';
 
-  // رسم خطي: تحصيل/تسليم "تم" فعلياً (تشيك بوكس مؤكَّد) لكل شهر
-  const lineLabels = monthTotals.map(m => formatNumber(m.monthNum));
-  const lineHtml = activeAssoc && monthTotals.length ? renderLineChartHtml([
-    { label: 'تحصيل', color: 'var(--indigo)', data: monthTotals.map(m => (confirmSummary[m.monthNum] || {}).collectionDone || 0) },
-    { label: 'تسليم', color: 'var(--orange)', data: monthTotals.map(m => (confirmSummary[m.monthNum] || {}).deliveryDone || 0) },
-  ], lineLabels) : '<p class="table-empty">لا يوجد أداء لعرضه بعد</p>';
+  // أداء التحصيل والتسليم — حلقتا نسبة حقيقيتان (وليس رسماً خطياً) تتفاعلان مباشرة مع مجموع ما أُكِّد
+  // فعلياً عبر تشيك بوكس كل شهر (تحديد محمد الصريح: "مؤشرات حقيقية تتفاعل مع تشيك بوكس")
+  const collPercent_ = summary && summary.collectionExpected > 0 ? Math.round((summary.collectionDone / summary.collectionExpected) * 100) : 0;
+  const delivPercent_ = summary && summary.deliveryExpected > 0 ? Math.round((summary.deliveryDone / summary.deliveryExpected) * 100) : 0;
+  const performanceHtml = activeAssoc ? (
+    '<div class="grid-2-fixed">' +
+      kpiRingCard_(collPercent_, compactValue_(summary ? summary.collectionDone : 0), 'ريال تحصيل', 'نسبة التحصيل', collPercent_ + '٪ من ' + formatCurrency(summary ? summary.collectionExpected : 0)) +
+      kpiRingCard_(delivPercent_, compactValue_(summary ? summary.deliveryDone : 0), 'ريال تسليم', 'نسبة التسليم', delivPercent_ + '٪ من ' + formatCurrency(summary ? summary.deliveryExpected : 0)) +
+    '</div>'
+  ) : '<p class="table-empty">لا توجد جمعية نشطة لعرض أدائها</p>';
 
   const combinedExpected = summary ? summary.collectionExpected + summary.deliveryExpected : 0;
   const combinedDone = summary ? summary.collectionDone + summary.deliveryDone : 0;
@@ -377,7 +380,7 @@ async function showReportsTab(content, activate, isStale) {
       reportQuickRow_('#3b5bdb', 'إجمالي الأسهم', formatNumber(activeAssoc ? activeAssoc.totalShares : 0)) +
       reportQuickRow_('var(--indigo)', 'مستوى الالتزام العام', commitmentPercent + '٪') +
     '</div></div>' +
-    '<div class="card" style="margin-bottom:18px" id="r-performance-anchor"><div class="card-title">' + ICONS.chart + ' أداء التحصيل والتسليم</div>' + lineHtml + '</div>' +
+    '<div class="card" style="margin-bottom:18px" id="r-performance-anchor"><div class="card-title">' + ICONS.chart + ' أداء التحصيل والتسليم</div>' + performanceHtml + '</div>' +
     '<div class="card" id="r-shares-anchor"><div class="card-title">' + ICONS.donut + ' توزيع الرغبات على الأشهر</div>' +
       '<p class="form-hint" style="margin:-8px 0 12px">القيمة لكل شهر = إجمالي مبلغ الاستلام الكامل للأعضاء المختارين لهذا الشهر (وليس تحصيل الشهر نفسه فقط) — لذا تختلف الأرقام غالباً عن مبلغ التحصيل الشهري العادي</p>' +
       donutHtml + '</div>';
