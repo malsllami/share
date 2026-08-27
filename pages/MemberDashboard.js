@@ -16,7 +16,7 @@ import { markDeviceBiometricLinked, deviceHasBiometricLinked, clearDeviceBiometr
 import { escapeHtml } from '../utils/sanitize.js';
 import { guessDeviceName, guessBiometricKind, BIOMETRIC_META } from '../utils/deviceBiometric.js';
 import { RP_ID, RP_NAME } from '../config/config.js';
-import { renderDonutHtml, percentBarClass_, renderStatRingHtml } from '../components/Charts.js';
+import { renderDonutHtml, percentBarClass_, renderStatRingHtml, compactValue_ } from '../components/Charts.js';
 import { ICONS } from '../utils/icons.js';
 import { renderBottomNavHtml, wireBottomNav, updateBottomNavActive, MEMBER_PRIMARY_ITEMS, MEMBER_MORE_ITEMS } from '../components/BottomNav.js';
 
@@ -45,10 +45,10 @@ export async function renderMemberDashboard(root, { session, onLogout }) {
   activate('home');
 }
 
-// بطاقة "رغباتي واستحقاقي" — طُلبت صراحةً من محمد: كل شهر استلام اخترته + عدد الأيام المتبقية على
-// الاستحقاق، بتلوين محدَّد: أخضر = تم الاستلام فعلاً، أزرق = أقل من 30 يوماً متبقياً،
-// برتقالي = 30 يوماً فأكثر متبقياً — نظام ألوان مختلف عمداً عن بطاقة "أشهر استلامي المحدَّدة"
-// الأقدم (أحمر/ذهبي/محايد) المستخدَمة داخل تفصيل الجمعية؛ الاثنتان تتعايشان لغرضين مختلفين
+// بطاقة "رغباتي واستحقاقي" — مؤشرات حلقية بدل صفوف نصية (تحديد محمد الصريح): كل شهر استلام اخترته
+// يصبح حلقة مستقلة، بتلوين محدَّد: أخضر ممتلئ = تم الاستلام فعلاً، أزرق = أقل من 30 يوماً متبقياً،
+// برتقالي = 30 يوماً فأكثر متبقياً. امتلاء الحلقة للمنجَز فقط له معنى نسبة حقيقية (100٪)؛ للمنتظر
+// هو تمييز بصري لحالة "لم يكتمل بعد" (الشهر واللون والعدّاد النصي كلها بيانات حقيقية دائماً)
 function buildMyEntitlementCardHtml(activeAssoc, deliveryRows, monthDateByNum) {
   if (!deliveryRows || deliveryRows.length === 0) {
     return (
@@ -56,35 +56,34 @@ function buildMyEntitlementCardHtml(activeAssoc, deliveryRows, monthDateByNum) {
       '<p class="table-empty">لم تحدّد شهر استلام بعد في ' + activeAssoc.name + '</p></div>'
     );
   }
-  const rows = deliveryRows.slice().sort((a, b) => a.monthNum - b.monthNum).map(r => {
-    let state, countdownClass, countdownText;
+  const cards = deliveryRows.slice().sort((a, b) => a.monthNum - b.monthNum).map(r => {
+    let ringPercent, ringColor, subText;
     if (r.delivered) {
-      state = 'state-done'; countdownClass = 'done';
-      countdownText = 'تم الاستلام' + (r.confirmDate ? ' — ' + new Date(r.confirmDate).toLocaleDateString('en-GB') : '');
+      ringPercent = 100; ringColor = 'var(--success)';
+      subText = 'تم الاستلام' + (r.confirmDate ? ' — ' + new Date(r.confirmDate).toLocaleDateString('en-GB') : '');
     } else {
       const d = daysUntil(computeMonthDueDate(monthDateByNum.get(Number(r.monthNum))));
       if (d === null || d < 30) {
-        state = 'state-soon-blue'; countdownClass = 'soon-blue';
-        countdownText = (d === null || d <= 0) ? 'مستحق الآن' : 'خلال ' + formatNumber(d) + ' يوم';
+        ringPercent = 40; ringColor = '#1d4ed8';
+        subText = (d === null || d <= 0) ? 'مستحق الآن' : 'خلال ' + formatNumber(d) + ' يوم';
       } else {
-        state = 'state-far-orange'; countdownClass = 'far-orange';
-        countdownText = 'خلال ' + formatNumber(d) + ' يوم';
+        ringPercent = 15; ringColor = 'var(--orange)';
+        subText = 'خلال ' + formatNumber(d) + ' يوم';
       }
     }
     return (
-      '<div class="mpc-delivery-row ' + state + '">' +
-        '<div class="mpc-delivery-month">' + formatNumber(r.monthNum) + '</div>' +
-        '<div class="mpc-delivery-info">' +
-          '<div class="mpc-delivery-shares">' + formatNumber(r.sharesCount) + ' سهم</div>' +
-          '<div class="mpc-delivery-value">' + formatCurrency(r.deliveryValue) + '</div>' +
+      '<div class="kpi-flat-card kpi-ring-card">' +
+        '<div class="kpi-mini-ring" style="background:conic-gradient(' + ringColor + ' 0% ' + ringPercent + '%, var(--border) ' + ringPercent + '% 100%)">' +
+          '<div class="kpi-mini-ring-hole"><b>' + formatNumber(r.monthNum) + '</b><span>شهر</span></div>' +
         '</div>' +
-        '<div class="mpc-delivery-countdown ' + countdownClass + '">' + countdownText + '</div>' +
+        '<div class="l">' + formatNumber(r.sharesCount) + ' سهم — ' + formatCurrency(r.deliveryValue) + '</div>' +
+        '<div class="kpi-ring-sub">' + subText + '</div>' +
       '</div>'
     );
   }).join('');
   return (
     '<div class="card mt-16"><div class="card-title">' + ICONS.target + ' رغباتي واستحقاقي — ' + activeAssoc.name + '</div>' +
-      '<div class="mpc-delivery-list">' + rows + '</div>' +
+      '<div class="kpi-grid-6">' + cards + '</div>' +
     '</div>'
   );
 }
@@ -192,7 +191,7 @@ export async function renderMemberAssociationsView(content, session, isStale) {
   const kpiSectionHtml = !activeAssoc ? '' : (
     '<div class="section-title">إجماليات حسابك — ' + activeAssoc.name + '</div>' +
     '<div class="kpi-ring-grid" style="margin-bottom:18px">' +
-      renderStatRingHtml(paidPercent, formatCurrency(paidSoFar), 'إجمالي المدفوع') +
+      renderStatRingHtml(paidPercent, compactValue_(paidSoFar) + ' ر.س', 'إجمالي المدفوع') +
       renderStatRingHtml(activeProg.percent, formatNumber(activeAssoc.duration) + ' شهر', 'مدة الجمعية — متبقٍ ' + formatNumber(activeProg.remainingMonths)) +
       renderStatRingHtml(paidPercent, paidPercent + '٪', 'المدفوع من الأسهم') +
       renderStatRingHtml(receivedSharesPercent, formatNumber(activeAssoc.sub.sharesCount) + ' سهم', 'أسهمي — مستلم ' + formatNumber(receivedSharesCount)) +
@@ -280,7 +279,7 @@ function buildMemberAssocCardEl(a, myWishes, content, session) {
       '<div class="assoc-meta-item"><div class="assoc-meta-label">أسهمي في الجمعية</div><div class="assoc-meta-val">' + formatNumber(a.sub.sharesCount) + ' سهم</div></div>' +
       '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
     '</div>' +
-    '<div class="progress-wrap primary">' + renderProgressBarHtml(prog.percent, percentBarClass_(prog.percent)) +
+    '<div class="progress-wrap primary">' + renderProgressBarHtml(prog.percent, 'assoc-gradient') +
       '<div class="progress-label">' + (notStartedYet
         ? '<span>لم تبدأ بعد</span><span>تبدأ خلال ' + formatNumber(daysToStart) + ' يوم</span>'
         : '<span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span>') + '</div></div>' +
@@ -340,19 +339,19 @@ async function renderMemberCategoriesView(content, session) {
   ];
   content.innerHTML =
     '<div class="section-title mt-16">الفئات — جمعياتي حسب الحالة</div>' +
-    '<div class="tabs" id="cat-filter-tabs">' + FILTERS.map(f => '<button class="tab-btn" data-f="' + f.id + '">' + f.label + '</button>').join('') + '</div>' +
+    '<div class="tx-filter-pills" id="cat-filter-pills">' + FILTERS.map((f, i) => '<button class="tx-filter-pill' + (i === 0 ? ' active' : '') + '" data-f="' + f.id + '">' + f.label + '</button>').join('') + '</div>' +
     '<div class="grid grid-2 mt-16" id="cat-assoc-list"></div>';
 
-  const tabsEl = content.querySelector('#cat-filter-tabs');
+  const pillsEl = content.querySelector('#cat-filter-pills');
   const listEl = content.querySelector('#cat-assoc-list');
   function renderFiltered(filterId) {
-    tabsEl.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.f === filterId));
+    pillsEl.querySelectorAll('.tx-filter-pill').forEach(b => b.classList.toggle('active', b.dataset.f === filterId));
     const filtered = filterId === 'all' ? mine : mine.filter(a => a.status === filterId);
     listEl.innerHTML = '';
     if (filtered.length === 0) { listEl.innerHTML = '<p class="table-empty">لا توجد جمعيات في هذه الفئة</p>'; return; }
     filtered.forEach(a => listEl.appendChild(buildMemberAssocCardEl(a, myWishes, content, session)));
   }
-  tabsEl.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => renderFiltered(b.dataset.f)));
+  pillsEl.querySelectorAll('.tx-filter-pill').forEach(b => b.addEventListener('click', () => renderFiltered(b.dataset.f)));
   renderFiltered('all');
 }
 
