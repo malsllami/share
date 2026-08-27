@@ -155,6 +155,8 @@
 .progress-bar-fill.success { background: linear-gradient(90deg, #065f46, var(--success)); }
 .progress-bar-fill.warning { background: linear-gradient(90deg, #92400e, var(--warning)); }
 .progress-bar-fill.danger { background: linear-gradient(90deg, #7f1d1d, var(--danger)); }
+/* تدرّج مثبَّت لتقدّم الجمعية النشطة زمنياً في كل الموقع (ذهبي→أخضر→تركوازي) — لون واحد ثابت لهذا المفهوم تحديداً */
+.progress-bar-fill.assoc-gradient { background: linear-gradient(90deg, var(--gold-d), var(--success), #14b8a6); }
 .capacity-label, .progress-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-3); margin-top: 6px; font-weight: 600; }
 
 /* تمييز بصري بين شريط أساسي (تقدّم الجمعية الزمني — العنصر الأهم) وشريط ثانوي (حالة اختيار
@@ -414,16 +416,36 @@
 .stat-ring-hole b { font-family: 'Sora', sans-serif; font-size: 12.5px; font-weight: 800; color: var(--text); }
 .stat-ring-label { font-size: 10.5px; color: var(--text-2); font-weight: 700; line-height: 1.4; }
 
-/* ═══════════════════ زر دائري عائم "+" (FAB) — إنشاء جمعية جديدة، بديل الزر العريض ═══════════════════ */
-.fab-circle-btn {
-  width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; background: var(--gold);
-  color: #fff; box-shadow: var(--sh-md); transition: all .2s var(--spring); font-size: 20px; font-weight: 800;
+/* ═══════════════════ زر "إنشاء جمعية جديدة" — عريض بتدرّج ذهبي→برتقالي (قرار محمد: ليس دائرة +) ═══════════════════ */
+.btn-create-assoc {
+  width: 100%; height: 52px; border: none; border-radius: var(--radius-sm); cursor: pointer;
+  background: linear-gradient(135deg, var(--gold-d), var(--orange)); color: #fff;
+  font-weight: 800; font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: var(--sh-md); transition: all .2s var(--ease); margin-bottom: 18px;
 }
-.fab-circle-btn:hover { transform: scale(1.06); box-shadow: var(--sh-lg); }
-.fab-circle-btn:active { transform: scale(.94); }
-.fab-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
-.fab-row-title { font-weight: 800; font-size: 14px; color: var(--text); }
+.btn-create-assoc:hover { transform: translateY(-2px); box-shadow: var(--sh-lg); }
+.btn-create-assoc:active { transform: scale(.98); }
+.btn-create-assoc .icon-svg { width: 18px; height: 18px; }
+
+/* ═══════════════════ مستوى الالتزام — حلقة عامة + تصنيف الأعضاء (ملتزم/متأخر/متعثر) من بيانات حقيقية ═══════════════════ */
+.commitment-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.commitment-card .stat-ring-wrap { background: none; border: none; padding: 0; }
+.commitment-breakdown { display: flex; flex-direction: column; gap: 7px; }
+.commitment-row { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: var(--text-2); }
+.commitment-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ═══════════════════ إجراءات سريعة — شبكة 2×2 داخل بطاقة واحدة بدل صف أزرار يستهلك الشاشة ═══════════════════ */
+.quick-actions-2x2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.quick-action-2x2-btn {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 16px 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 12.5px; font-weight: 700; color: var(--text); transition: all .2s var(--ease);
+}
+.quick-action-2x2-btn:hover { background: var(--indigo-soft); border-color: var(--indigo); }
+.quick-action-2x2-btn .icon-svg { width: 20px; height: 20px; color: var(--indigo-text); }
 
 /* ═══════════════════ تنبيهات هامة (لوحة المدير) — كلها من بيانات حقيقية محسوبة، بلا جدول جديد ═══════════════════ */
 .alerts-list { display: flex; flex-direction: column; gap: 10px; }
@@ -434,7 +456,38 @@
 .alert-card-title { font-size: 12.5px; font-weight: 800; color: var(--text); }
 .alert-card-text { font-size: 11.5px; color: var(--text-2); margin-top: 2px; }
 
+/* ═══════════════════ شبكة "التقارير" (أزرار إطلاق) + ملخص سريع ═══════════════════ */
+.report-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+@media (max-width: 480px) { .report-grid { grid-template-columns: repeat(2, 1fr); } }
+.report-launcher-btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 14px 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer;
+  transition: all .2s var(--ease);
+}
+.report-launcher-btn:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }
+.report-launcher-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.report-launcher-icon .icon-svg { width: 19px; height: 19px; }
+.report-launcher-icon.blue   { background: rgba(59,91,219,0.12); color: #3b5bdb; }
+.report-launcher-icon.indigo { background: rgba(79,70,229,0.12); color: #4f46e5; }
+.report-launcher-icon.purple { background: rgba(124,58,237,0.12); color: var(--purple); }
+.report-launcher-icon.gold   { background: var(--gold-soft); color: var(--gold-d); }
+.report-launcher-icon.green  { background: var(--success-soft); color: var(--success); }
+.report-launcher-icon.orange { background: rgba(217,117,43,0.14); color: var(--orange); }
+.report-launcher-label { font-size: 11px; font-weight: 700; color: var(--text-2); text-align: center; }
+.report-quick-list { display: flex; flex-direction: column; gap: 10px; }
+.report-quick-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+.report-quick-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.report-quick-label { flex: 1; color: var(--text-2); }
+.report-quick-val { font-family: 'Sora', sans-serif; font-weight: 800; color: var(--text); }
+
 /* ═══════════════════ سجل المعاملات (لوحة المدير) وآخر العمليات (لوحة العضو) ═══════════════════ */
+.tx-filter-pills { display: flex; gap: 8px; }
+.tx-filter-pill {
+  flex: 1; padding: 9px 10px; border-radius: var(--pill); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-2); font-weight: 700; font-size: 12.5px; cursor: pointer;
+  transition: all .2s var(--ease);
+}
+.tx-filter-pill.active { background: var(--indigo); border-color: var(--indigo); color: #fff; }
 .tx-list { display: flex; flex-direction: column; }
 .tx-row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px dashed var(--border); }
 .tx-row:last-child { border-bottom: none; }

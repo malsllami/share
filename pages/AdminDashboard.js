@@ -57,7 +57,7 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
     tabsEl.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
     updateBottomNavActive(root, tabId, ADMIN_PRIMARY_ITEMS);
     if (tabId === 'overview') showOverviewTab(content, activate, session, isStale);
-    else if (tabId === 'reports') showReportsTab(content, isStale);
+    else if (tabId === 'reports') showReportsTab(content, activate, isStale);
     else if (tabId === 'transactions') showTransactionsTab(content, isStale);
     else if (tabId === 'my-associations') renderMemberAssociationsView(content, session, isStale);
     else if (tabId === 'settings') showSettingsTab(content, isStale);
@@ -74,35 +74,32 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 }
 
 /* ══════════════════ نظرة عامة ══════════════════ */
-// بطاقة مؤشر (KPI) بيضاء/فاتحة بأيقونة صغيرة ملوّنة داخل شارة دائرية — مطابقة للتصميم المرجعي
-// الأصلي (وليس بطاقة متدرّجة كاملة اللون) — قرار محمد الصريح بعد المعاينة الأولى
-function statCard(color, iconSvg, value, label, compactValue) {
+// بطاقة KPI بحلقة نسبة حقيقية (الأسهم/المدفوعات/المستلمات) — النسبة والمركز والنص الفرعي كلها من
+// بيانات حقيقية، بلون ديناميكي حسب فئة النسبة (percentColor_) — قرار محمد الصريح: "مؤشر تفاعلي بالألوان"
+function kpiRingCard_(percent, centerValue, centerUnit, label, subHtml) {
+  const color = percentColor_(percent);
   return (
-    '<div class="kpi-flat-card">' +
-      '<div class="kpi-flat-icon ' + color + '">' + iconSvg + '</div>' +
-      '<div class="n"' + (compactValue ? ' style="font-size:15px"' : '') + '>' + value + '</div>' +
+    '<div class="kpi-flat-card kpi-ring-card">' +
+      '<div class="kpi-mini-ring" style="background:conic-gradient(' + color + ' 0% ' + percent + '%, var(--border) ' + percent + '% 100%)">' +
+        '<div class="kpi-mini-ring-hole"><b>' + centerValue + '</b><span>' + centerUnit + '</span></div>' +
+      '</div>' +
       '<div class="l">' + label + '</div>' +
+      (subHtml ? '<div class="kpi-ring-sub">' + subHtml + '</div>' : '') +
     '</div>'
   );
 }
 
-// بطاقة "تقدّم الجمعية النشطة" — شريط تقدّم زمني + الأشهر المتبقية + الأيام المتبقية، كلها مجمَّعة
-// في بطاقة واحدة بدل تفرّقها بين أماكن مختلفة، من computeDurationProgress الموجودة أصلاً
-function buildProgressCardHtml(activeAssoc) {
-  if (!activeAssoc) {
-    return '<div class="card"><div class="card-title">' + ICONS.target + ' تقدّم الجمعية النشطة</div><p class="table-empty">لا توجد جمعية نشطة حالياً</p></div>';
-  }
-  const prog = computeDurationProgress(activeAssoc.startDate, activeAssoc.endDate, activeAssoc.duration);
+// بطاقة KPI عدد بسيط (الأعضاء/رأس المال/الجمعيات) — ليست نسبة أصلاً فلا تأخذ حلقة مؤشر، مع تفصيل
+// فرعي اختياري (نقطة ملوّنة + نص) أسفلها
+function kpiPlainCard_(color, iconSvg, value, label, subRows) {
   return (
-    '<div class="card">' +
-      '<div class="card-title">' + ICONS.target + ' تقدّم ' + activeAssoc.name + '</div>' +
-      '<div class="progress-wrap primary">' + renderProgressBarHtml(prog.percent) +
-        '<div class="progress-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' من ' + formatNumber(activeAssoc.duration) + ' شهر</span><span>' + prog.percent + '٪</span></div>' +
-      '</div>' +
-      '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">الأشهر المتبقية</div><div class="assoc-meta-val">' + formatNumber(prog.remainingMonths) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">الأيام المتبقية</div><div class="assoc-meta-val">' + formatNumber(prog.remainingDays) + '</div></div>' +
-      '</div>' +
+    '<div class="kpi-flat-card">' +
+      '<div class="kpi-flat-icon ' + color + '">' + iconSvg + '</div>' +
+      '<div class="n">' + value + '</div>' +
+      '<div class="l">' + label + '</div>' +
+      (subRows ? '<div class="kpi-plain-sub">' + subRows.map(r =>
+        '<span class="kpi-plain-sub-row"><span class="kpi-plain-sub-dot" style="background:' + r.color + '"></span>' + r.text + '</span>'
+      ).join('') + '</div>' : '') +
     '</div>'
   );
 }
@@ -139,6 +136,7 @@ async function openSubscribedMembersModal(assoc, members) {
 // في نفس الوقت (انظر تسلسل الحالات في MonthClosing.gs) — أي حالة استثنائية أكثر تبقى مرئية بالكامل
 // من تبويب "إدارة الجمعيات" العادي بلا أي تغيير
 function buildTwoAssocCardsHtml(activeAssoc, freshAssoc, activeSummary) {
+  const activeProg = activeAssoc ? computeDurationProgress(activeAssoc.startDate, activeAssoc.endDate, activeAssoc.duration) : null;
   const activeCard = activeAssoc ? (
     '<div class="card" style="border-top:4px solid var(--success)">' +
       '<div class="flex-between">' +
@@ -147,6 +145,13 @@ function buildTwoAssocCardsHtml(activeAssoc, freshAssoc, activeSummary) {
           '<button class="mini-icon-btn" id="ov-sub-members-btn" title="أعضاء المشتركين في الجمعية">' + ICONS.people + '</button>' +
           '<span class="badge badge-success">نشطة</span>' +
         '</div>' +
+      '</div>' +
+      '<div class="progress-wrap primary mt-16">' + renderProgressBarHtml(activeProg.percent, 'assoc-gradient') +
+        '<div class="progress-label"><span>تقدّم الجمعية — ' + activeProg.percent + '٪</span><span>' + formatNumber(activeProg.remainingDays) + ' يوم متبقٍ</span></div>' +
+      '</div>' +
+      '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">أشهر مضت</div><div class="assoc-meta-val">' + formatNumber(activeProg.elapsedMonths) + '</div></div>' +
+        '<div class="assoc-meta-item"><div class="assoc-meta-label">أشهر متبقية</div><div class="assoc-meta-val">' + formatNumber(activeProg.remainingMonths) + '</div></div>' +
       '</div>' +
       '<div class="fin-summary mt-16">' +
         '<div class="fin-summary-card success"><div class="fin-summary-title"><span class="fin-dot"></span>تم</div>' +
@@ -182,14 +187,6 @@ function buildTwoAssocCardsHtml(activeAssoc, freshAssoc, activeSummary) {
   return '<div class="section-title">نظرة على الجمعيتين</div><div class="grid-2-fixed" style="margin-bottom:18px">' + activeCard + freshCard + '</div>';
 }
 
-function renderActivityFeedHtml(activity) {
-  if (!activity || activity.length === 0) return '<p class="table-empty">لا توجد أنشطة مسجَّلة بعد</p>';
-  return activity.map(e =>
-    '<div class="activity-row"><span class="dot"></span><span class="txt">' + escapeHtml(e.text) + '</span>' +
-      '<span class="time">' + formatDualDate(e.date).gregorian + '</span></div>'
-  ).join('');
-}
-
 async function showOverviewTab(content, activate, session, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let bundle;
@@ -202,11 +199,10 @@ async function showOverviewTab(content, activate, session, isStale) {
   }
   if (isStale && isStale()) return;
 
-  // alerts الآن جزء من نفس حزمة getOverviewBundle (بلا رحلة شبكة إضافية) — انظر buildOverviewAlerts_
-  // في gas/Associations.gs. الرسوم البيانية (دونات توزيع الرغبات + خط الأداء) انتقلت لتبويب "التقارير"
-  // المستقل، وسجل عمليات التحصيل/التسليم التفصيلي انتقل لتبويب "المعاملات" — نظرة عامة أصبحت مؤشرات
-  // سريعة + تنبيهات فقط، حسب التصميم المرجعي الجديد
-  const { associations, members, summaryByAssoc, activity, alerts } = bundle;
+  // الرئيسية أصبحت "ملخص" فقط حسب تسلسل محمد الصريح: مؤشرات → التزام → الجمعية النشطة/الجديدة →
+  // إنشاء جمعية → إجراءات سريعة → آخر العمليات. التفاصيل الكاملة (حالة كل الجمعيات، سجل الأنشطة)
+  // تبقى بتبويباتها المخصَّصة (الجمعيات/التقارير) بدل ازدحام الرئيسية ببيانات لا يحتاجها أول نظرة
+  const { associations, members, summaryByAssoc, commitmentBreakdown } = bundle;
   const activeMembers = members.filter(m => m.status === 'نشط');
   const activeAssoc = associations.find(a => a.status === 'نشطة') || null;
   const freshAssoc = associations.find(a => a.status === 'جديدة') || null;
@@ -216,86 +212,84 @@ async function showOverviewTab(content, activate, session, isStale) {
   // أعمدة مخزَّنة فعلياً بجدول الجمعيات، فهذا حساب حقيقي 100٪ وليس بيانات وهمية (تحديد محمد صراحة)
   const totalCapital = activeAssoc ? (Number(activeAssoc.memberCount) || 0) * (Number(activeAssoc.duration) || 0) * (Number(activeAssoc.shareValue) || 0) : 0;
 
+  const totalShares = activeAssoc ? Number(activeAssoc.totalShares) || 0 : 0;
+  const deliveredShares = activeSummary ? Number(activeSummary.deliveredShares) || 0 : 0;
+  const remainingShares = Math.max(0, totalShares - deliveredShares);
+  const sharesPercent = totalShares > 0 ? Math.round((deliveredShares / totalShares) * 100) : 0;
+
+  const collectionPercent = activeSummary && activeSummary.collectionExpected > 0 ? Math.round((activeSummary.collectionDone / activeSummary.collectionExpected) * 100) : 0;
+  const deliveryPercent = activeSummary && activeSummary.deliveryExpected > 0 ? Math.round((activeSummary.deliveryDone / activeSummary.deliveryExpected) * 100) : 0;
+
   const combinedExpected = activeSummary ? activeSummary.collectionExpected + activeSummary.deliveryExpected : 0;
   const combinedDone = activeSummary ? activeSummary.collectionDone + activeSummary.deliveryDone : 0;
   const commitmentPercent = combinedExpected > 0 ? Math.round((combinedDone / combinedExpected) * 100) : 0;
 
-  // حالة الجمعيات — "قريبة الانتهاء" تصنيف محسوب (وليس عموداً مخزَّناً بقاعدة البيانات): جمعية نشطة
-  // تبقّى لها شهر واحد أو أقل حتى تاريخ نهايتها الفعلي (computeDurationProgress نفسها المستخدَمة بكل الموقع)
-  let activeCount = 0, endingSoonCount = 0, finishedCount = 0;
-  associations.forEach(a => {
-    if (a.status === 'منتهية') { finishedCount++; return; }
-    if (a.status === 'نشطة') {
-      const prog = computeDurationProgress(a.startDate, a.endDate, a.duration);
-      if (prog.remainingMonths <= 1) endingSoonCount++; else activeCount++;
-    }
-  });
-  const statusDonutHtml = renderDonutHtml([
-    { label: 'نشطة', value: activeCount, color: 'var(--success)' },
-    { label: 'قريبة الانتهاء', value: endingSoonCount, color: 'var(--warning)' },
-    { label: 'منتهية', value: finishedCount, color: 'var(--text-3)' },
-  ], formatNumber(associations.length), 'جمعية بكل الحالات');
+  const activeAssocsCount = associations.filter(a => a.status === 'نشطة').length;
+  const freshAssocsCount = associations.filter(a => a.status === 'جديدة').length;
+
+  // آخر العمليات (معاينة 5 فقط بالرئيسية، مع رابط لتبويب "المعاملات" الكامل) — نداء واحد مستقل بعد
+  // اكتمال الحزمة الرئيسية (وليس متزامناً معها)؛ مخزَّن مؤقتاً 60 ثانية على الخادم، وفشله لا يمنع عرض بقية الرئيسية
+  let recentTxs = [];
+  try { recentTxs = await callApi('getTransactionsLog'); } catch (err) { /* غير حرج بالرئيسية */ }
+  if (isStale && isStale()) return;
 
   content.innerHTML =
-    // ١) تنبيهات هامة — من بيانات حقيقية محسوبة فقط (استحقاق قرب انتهاء، أعضاء لم يسدّدوا، أسهم لم
-    // تُسلَّم بعد للشهر الحالي) — بلا أي جدول إشعارات جديد بقاعدة البيانات
-    (alerts && alerts.length ? (
-      '<div class="section-title">' + ICONS.bell + ' تنبيهات هامة</div>' +
-      '<div class="alerts-list" style="margin-bottom:18px">' +
-        alerts.map(al => (
-          '<div class="alert-card' + (al.severity === 'danger' ? ' danger' : '') + '">' + ICONS.target +
-            '<div class="alert-card-text">' + escapeHtml(al.text) + '</div>' +
-          '</div>'
-        )).join('') +
+    // ١) 6 بطاقات المؤشرات العامة — شبكة 2×3، حلقة نسبة حقيقية للمقاييس النسبية، وتفصيل فرعي للأعداد
+    '<div class="section-title">المؤشرات العامة</div>' +
+    '<div class="kpi-grid-6">' +
+      kpiRingCard_(sharesPercent, formatNumber(totalShares), 'سهم', 'إجمالي الأسهم',
+        formatNumber(deliveredShares) + ' مستلم<br>' + formatNumber(remainingShares) + ' متبقي') +
+      kpiPlainCard_('blue', ICONS.people, formatNumber(members.length), 'إجمالي الأعضاء', [
+        { color: 'var(--success)', text: formatNumber(activeMembers.length) + ' نشط' },
+        { color: 'var(--text-3)', text: formatNumber(members.length - activeMembers.length) + ' غير نشط' },
+      ]) +
+      kpiPlainCard_('gold', ICONS.wallet, formatCurrency(totalCapital), 'إجمالي رأس المال', null) +
+      kpiRingCard_(collectionPercent, formatCurrency(activeSummary ? activeSummary.collectionDone : 0), 'ريال', 'إجمالي المدفوعات',
+        'المتبقي ' + formatCurrency(activeSummary ? activeSummary.collectionRemaining : 0)) +
+      kpiRingCard_(deliveryPercent, formatCurrency(activeSummary ? activeSummary.deliveryDone : 0), 'ريال', 'إجمالي المستلمات',
+        'المتبقي ' + formatCurrency(activeSummary ? activeSummary.deliveryRemaining : 0)) +
+      kpiPlainCard_('purple', ICONS.building, formatNumber(associations.length), 'إجمالي الجمعيات', [
+        { color: 'var(--success)', text: formatNumber(activeAssocsCount) + ' نشطة' },
+        { color: 'var(--warning)', text: formatNumber(freshAssocsCount) + ' جديدة' },
+      ]) +
+    '</div>' +
+
+    // ٢) مستوى الالتزام — حلقة عامة + تصنيف كل عضو (ملتزم/متأخر/متعثر) من بيانات تحصيل حقيقية
+    (commitmentBreakdown ? (
+      '<div class="commitment-card-wrap">' +
+      '<div class="section-title">مستوى الالتزام</div>' +
+      '<div class="commitment-card">' +
+        renderStatRingHtml(commitmentPercent, commitmentPercent + '٪', '') +
+        '<div class="commitment-breakdown">' +
+          '<div class="commitment-row"><span class="commitment-dot" style="background:var(--success)"></span>' + formatNumber(commitmentBreakdown.committed) + ' ملتزم</div>' +
+          '<div class="commitment-row"><span class="commitment-dot" style="background:var(--warning)"></span>' + formatNumber(commitmentBreakdown.late) + ' متأخر</div>' +
+          '<div class="commitment-row"><span class="commitment-dot" style="background:var(--danger)"></span>' + formatNumber(commitmentBreakdown.defaulted) + ' متعثر</div>' +
+        '</div>' +
+      '</div>' +
       '</div>'
     ) : '') +
 
-    // ٢) 6 بطاقات المؤشرات العامة — حسب التصميم المرجعي الجديد بالضبط
-    '<div class="section-title">المؤشرات العامة</div>' +
-    '<div class="kpi-grid-6">' +
-      statCard('blue', ICONS.people, formatNumber(activeMembers.length), 'إجمالي الأعضاء') +
-      statCard('indigo', ICONS.donut, formatNumber(activeAssoc ? activeAssoc.totalShares : 0), 'إجمالي الأسهم') +
-      statCard('purple', ICONS.building, formatNumber(associations.length), 'إجمالي الجمعيات') +
-      statCard('gold', ICONS.wallet, formatCurrency(totalCapital), 'إجمالي رأس المال', true) +
-      statCard('green', ICONS.wallet, formatCurrency(activeSummary ? activeSummary.collectionDone : 0), 'إجمالي المدفوعات', true) +
-      statCard('orange', ICONS.handoff, formatCurrency(activeSummary ? activeSummary.deliveryDone : 0), 'إجمالي المستلمات', true) +
-    '</div>' +
-
-    // ٣) نسبة الالتزام (حلقة بلون ديناميكي حسب فئة النسبة) + تقدّم الجمعية النشطة زمنياً
-    '<div class="grid-2-fixed" style="margin-bottom:18px">' +
-      '<div class="card" style="display:flex;align-items:center;justify-content:center">' +
-        renderStatRingHtml(commitmentPercent, commitmentPercent + '٪', 'مستوى الالتزام — الجمعية النشطة') +
-      '</div>' +
-      buildProgressCardHtml(activeAssoc) +
-    '</div>' +
-
-    // ٤) زر دائري "+" لإنشاء جمعية جديدة (بدل الزر العريض السابق — تحديد محمد صراحة)
-    '<div class="fab-row">' +
-      '<div class="fab-row-title">إنشاء جمعية جديدة</div>' +
-      '<button class="fab-circle-btn" id="ov-fab-create-assoc" title="إنشاء جمعية جديدة">+</button>' +
-    '</div>' +
-
-    // ٥) حالة الجمعيات (دونات) + إجراءات سريعة
-    '<div class="grid-2-fixed" style="margin-bottom:18px">' +
-      '<div class="card"><div class="card-title">' + ICONS.donut + ' حالة الجمعيات</div>' + statusDonutHtml + '</div>' +
-      '<div class="card">' +
-        '<div class="card-title">إجراءات سريعة</div>' +
-        '<div class="quick-actions">' +
-          '<button class="quick-action-btn" id="qa-add-member"><span class="qa-icon">' + ICONS.member + '</span>إضافة عضو</button>' +
-          '<button class="quick-action-btn" id="qa-goto-assoc"><span class="qa-icon">' + ICONS.building + '</span>الجمعيات</button>' +
-          '<button class="quick-action-btn" id="qa-goto-members"><span class="qa-icon">' + ICONS.people + '</span>الأعضاء</button>' +
-        '</div>' +
-      '</div>' +
-    '</div>' +
-
-    // ٦) الجمعية النشطة (بأيقونة أعضاء مشتركين) + الجمعية الجديدة
+    // ٣) الجمعية النشطة (بأيقونة أعضاء مشتركين) + الجمعية الجديدة
     buildTwoAssocCardsHtml(activeAssoc, freshAssoc, activeSummary) +
 
-    // ٧) أحدث الأنشطة — حقيقية بالكامل من gas/Activity.gs
-    '<div class="section-title">أحدث الأنشطة</div>' +
-    '<div class="card" style="margin-bottom:18px"><div class="activity-feed">' + renderActivityFeedHtml(activity) + '</div></div>';
+    // ٤) زر إنشاء جمعية جديدة — عريض بتدرّج ذهبي→برتقالي، بعد قائمة الجمعيتين مباشرة (تحديد محمد الصريح)
+    '<button class="btn-create-assoc" id="ov-create-assoc-btn">' + ICONS.plus + ' إنشاء جمعية جديدة</button>' +
 
-  content.querySelector('#ov-fab-create-assoc').addEventListener('click', () => {
+    // ٥) إجراءات سريعة — بطاقة واحدة بشبكة 2×2 بدل صف أزرار يستهلك الشاشة
+    '<div class="section-title">إجراءات سريعة</div>' +
+    '<div class="card" style="margin-bottom:18px"><div class="quick-actions-2x2">' +
+      '<button class="quick-action-2x2-btn" id="qa-goto-assoc">' + ICONS.building + '<span>الجمعيات</span></button>' +
+      '<button class="quick-action-2x2-btn" id="qa-add-member">' + ICONS.member + '<span>إضافة عضو</span></button>' +
+      '<button class="quick-action-2x2-btn" id="qa-goto-members">' + ICONS.people + '<span>الأعضاء</span></button>' +
+      '<button class="quick-action-2x2-btn" id="qa-goto-reports">' + ICONS.chart + '<span>التقارير</span></button>' +
+    '</div></div>' +
+
+    // ٦) آخر العمليات — معاينة حقيقية (5 فقط) مع رابط لعرض السجل الكامل بتبويب "المعاملات"
+    '<div class="flex-between" style="margin-bottom:12px"><div class="section-title" style="margin:0">آخر العمليات</div>' +
+      '<button class="btn btn-outline btn-sm" id="ov-goto-transactions">عرض الكل ‹</button></div>' +
+    '<div class="card" style="margin-bottom:18px"><div class="tx-list">' + renderTransactionsListHtml(recentTxs.slice(0, 5)) + '</div></div>';
+
+  content.querySelector('#ov-create-assoc-btn').addEventListener('click', () => {
     activate('associations');
     openAddAssociationModal(() => showAssociationsTab(content, session));
   });
@@ -305,6 +299,8 @@ async function showOverviewTab(content, activate, session, isStale) {
   });
   content.querySelector('#qa-goto-assoc').addEventListener('click', () => activate('associations'));
   content.querySelector('#qa-goto-members').addEventListener('click', () => activate('members'));
+  content.querySelector('#qa-goto-reports').addEventListener('click', () => activate('reports'));
+  content.querySelector('#ov-goto-transactions').addEventListener('click', () => activate('transactions'));
 
   const subMembersBtn = content.querySelector('#ov-sub-members-btn');
   if (subMembersBtn) subMembersBtn.addEventListener('click', () => openSubscribedMembersModal(activeAssoc, members));
@@ -316,20 +312,32 @@ async function showOverviewTab(content, activate, session, isStale) {
 }
 
 /* ══════════════════ التقارير (رسوم بيانية مستقلة — منقولة من نظرة عامة) ══════════════════ */
-async function showReportsTab(content, isStale) {
+async function showReportsTab(content, activate, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  let bundle;
+  // استدعاءات مباشرة خفيفة (لا getOverviewBundle الثقيلة كاملة) — كل دالة هنا مخزَّنة مؤقتاً أصلاً
+  // (300 ثانية)، فتبويب التقارير لا يعيد حساب ملخصات كل الجمعيات النشطة والأنشطة والتنبيهات التي
+  // لا يحتاجها إطلاقاً؛ هذا كان السبب المباشر لبطء فتح هذا التبويب تحديداً حسب ملاحظة محمد
+  let associations;
   try {
-    bundle = await callApi('getOverviewBundle');
+    associations = await callApi('getAssociations');
   } catch (err) {
     if (isStale && isStale()) return;
     content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
     return;
   }
-  if (isStale && isStale()) return;
-
-  const { associations, monthTotals, confirmSummary } = bundle;
   const activeAssoc = associations.find(a => a.status === 'نشطة') || null;
+
+  let summary = null, monthTotals = [], confirmSummary = {};
+  if (activeAssoc) {
+    try {
+      [summary, monthTotals, confirmSummary] = await Promise.all([
+        callApi('getAssociationFinancialSummary', { assocId: activeAssoc.id }),
+        callApi('getMonthsWithTotals', { assocId: activeAssoc.id }),
+        callApi('getMonthsConfirmationSummary', { assocId: activeAssoc.id }),
+      ]);
+    } catch (err) { /* الملخص السريع/الرسوم تبقى فارغة إن فشلت — لا تمنع عرض شبكة التقارير نفسها */ }
+  }
+  if (isStale && isStale()) return;
 
   // رسم دائري: كم شهراً من مدة الجمعية النشطة له رغبات موزَّعة فعلاً (usedRiyal > 0)
   const donutColors = ['var(--kpi-blue-1)', 'var(--kpi-green-1)', 'var(--kpi-purple-1)', 'var(--kpi-orange-1)', 'var(--kpi-gold-1)', 'var(--indigo-l)'];
@@ -348,12 +356,60 @@ async function showReportsTab(content, isStale) {
     { label: 'تسليم', color: 'var(--orange)', data: monthTotals.map(m => (confirmSummary[m.monthNum] || {}).deliveryDone || 0) },
   ], lineLabels) : '<p class="table-empty">لا يوجد أداء لعرضه بعد</p>';
 
+  const combinedExpected = summary ? summary.collectionExpected + summary.deliveryExpected : 0;
+  const combinedDone = summary ? summary.collectionDone + summary.deliveryDone : 0;
+  const commitmentPercent = combinedExpected > 0 ? Math.round((combinedDone / combinedExpected) * 100) : 0;
+
   content.innerHTML =
-    '<div class="section-title mt-16">التقارير — الجمعية النشطة</div>' +
-    '<div class="card" style="margin-bottom:18px"><div class="card-title">' + ICONS.chart + ' أداء التحصيل والتسليم</div>' + lineHtml + '</div>' +
-    '<div class="card"><div class="card-title">' + ICONS.donut + ' توزيع الرغبات على الأشهر</div>' +
+    '<div class="section-title mt-16">التقارير</div>' +
+    '<div class="report-grid" id="report-grid">' +
+      reportLauncherBtn_('r-summary', ICONS.chart, 'تقرير ملخص الجمعية', 'blue') +
+      reportLauncherBtn_('r-payments', ICONS.wallet, 'تقرير المدفوعات', 'green') +
+      reportLauncherBtn_('r-receipts', ICONS.handoff, 'تقرير المستلمات', 'purple') +
+      reportLauncherBtn_('r-shares', ICONS.donut, 'تقرير الأسهم', 'indigo') +
+      reportLauncherBtn_('r-members', ICONS.people, 'تقرير الأعضاء', 'blue') +
+      reportLauncherBtn_('r-performance', ICONS.target, 'تقرير الأداء', 'orange') +
+    '</div>' +
+    '<div class="section-title">ملخص سريع</div>' +
+    '<div class="card" style="margin-bottom:18px"><div class="report-quick-list">' +
+      reportQuickRow_('var(--success)', 'إجمالي المدفوعات', formatCurrency(summary ? summary.collectionDone : 0)) +
+      reportQuickRow_('var(--purple)', 'إجمالي المستلمات', formatCurrency(summary ? summary.deliveryDone : 0)) +
+      reportQuickRow_('#3b5bdb', 'إجمالي الأسهم', formatNumber(activeAssoc ? activeAssoc.totalShares : 0)) +
+      reportQuickRow_('var(--indigo)', 'مستوى الالتزام العام', commitmentPercent + '٪') +
+    '</div></div>' +
+    '<div class="card" style="margin-bottom:18px" id="r-performance-anchor"><div class="card-title">' + ICONS.chart + ' أداء التحصيل والتسليم</div>' + lineHtml + '</div>' +
+    '<div class="card" id="r-shares-anchor"><div class="card-title">' + ICONS.donut + ' توزيع الرغبات على الأشهر</div>' +
       '<p class="form-hint" style="margin:-8px 0 12px">القيمة لكل شهر = إجمالي مبلغ الاستلام الكامل للأعضاء المختارين لهذا الشهر (وليس تحصيل الشهر نفسه فقط) — لذا تختلف الأرقام غالباً عن مبلغ التحصيل الشهري العادي</p>' +
       donutHtml + '</div>';
+
+  // أزرار الشبكة: تنقل مباشرة لتبويب ذي صلة أو تمرّر لقسم التفاصيل بنفس الصفحة — كلها بيانات حقيقية
+  // موجودة أصلاً، لا تفاصيل وهمية جديدة لكل نوع تقرير
+  const scrollTo = (id) => { const el = content.querySelector(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  content.querySelector('#r-summary').addEventListener('click', () => scrollTo('#r-performance-anchor'));
+  content.querySelector('#r-performance').addEventListener('click', () => scrollTo('#r-performance-anchor'));
+  content.querySelector('#r-shares').addEventListener('click', () => scrollTo('#r-shares-anchor'));
+  content.querySelector('#r-payments').addEventListener('click', () => activate('transactions'));
+  content.querySelector('#r-receipts').addEventListener('click', () => activate('transactions'));
+  content.querySelector('#r-members').addEventListener('click', () => activate('members'));
+}
+
+function reportLauncherBtn_(id, iconSvg, label, color) {
+  return (
+    '<button class="report-launcher-btn" id="' + id + '">' +
+      '<span class="report-launcher-icon ' + color + '">' + iconSvg + '</span>' +
+      '<span class="report-launcher-label">' + label + '</span>' +
+    '</button>'
+  );
+}
+
+function reportQuickRow_(dotColor, label, value) {
+  return (
+    '<div class="report-quick-row">' +
+      '<span class="report-quick-dot" style="background:' + dotColor + '"></span>' +
+      '<span class="report-quick-label">' + label + '</span>' +
+      '<span class="report-quick-val">' + value + '</span>' +
+    '</div>'
+  );
 }
 
 /* ══════════════════ المعاملات (سجل موحَّد لكل عمليات التحصيل/التسليم المؤكَّدة، كل الجمعيات) ══════════════════ */
@@ -369,9 +425,34 @@ async function showTransactionsTab(content, isStale) {
   }
   if (isStale && isStale()) return;
 
+  const totalIn = txs.filter(t => t.type === 'دفع').reduce((s, t) => s + Number(t.amount), 0);
+  const totalOut = txs.filter(t => t.type === 'استلام').reduce((s, t) => s + Number(t.amount), 0);
+
   content.innerHTML =
-    '<div class="section-title mt-16">المعاملات — كل الجمعيات</div>' +
-    '<div class="card"><div class="tx-list">' + renderTransactionsListHtml(txs) + '</div></div>';
+    '<div class="section-title mt-16">المعاملات</div>' +
+    '<div class="tx-filter-pills" id="tx-filter-pills">' +
+      '<button class="tx-filter-pill active" data-f="all">الكل</button>' +
+      '<button class="tx-filter-pill" data-f="دفع">مدفوعات</button>' +
+      '<button class="tx-filter-pill" data-f="استلام">مستلمات</button>' +
+    '</div>' +
+    '<div class="card mt-16"><div class="tx-list" id="tx-list"></div></div>' +
+    '<div class="grid-2-fixed mt-16">' +
+      '<div class="card"><div class="l" style="font-size:11px;color:var(--text-3)">إجمالي المدفوعات</div><div class="n" style="font-family:\'Sora\',sans-serif;font-size:20px;font-weight:800;color:var(--success)">' + formatCurrency(totalIn) + '</div></div>' +
+      '<div class="card"><div class="l" style="font-size:11px;color:var(--text-3)">إجمالي المستلمات</div><div class="n" style="font-family:\'Sora\',sans-serif;font-size:20px;font-weight:800;color:var(--purple)">' + formatCurrency(totalOut) + '</div></div>' +
+    '</div>';
+
+  const listEl = content.querySelector('#tx-list');
+  function renderFiltered(filter) {
+    const filtered = filter === 'all' ? txs : txs.filter(t => t.type === filter);
+    listEl.innerHTML = renderTransactionsListHtml(filtered);
+  }
+  content.querySelector('#tx-filter-pills').querySelectorAll('.tx-filter-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      content.querySelectorAll('.tx-filter-pill').forEach(b => b.classList.toggle('active', b === btn));
+      renderFiltered(btn.dataset.f);
+    });
+  });
+  renderFiltered('all');
 }
 
 function renderTransactionsListHtml(txs) {
@@ -393,7 +474,7 @@ function renderTransactionsListHtml(txs) {
 
 /* ══════════════════ الإعدادات ══════════════════ */
 const MESSAGE_PLACEHOLDER_HINTS = {
-  collection: '{الاسم} {عدد_الاسهم} {قيمة_التحصيل}',
+  collection: '{الاسم} {عدد_الاسهم} {قيمة_التحصيل} {رقم_الشهر}',
   delivery: '{الاسم} {عدد_الاسهم} {رقم_الشهر} {التاريخ} {اسهم_التسليم} {المتبقي} {تاريخ_الوقت}',
 };
 
@@ -942,6 +1023,7 @@ async function showMonthDetailModal(subContent, assoc, month) {
             الاسم: c.memberName,
             عدد_الاسهم: formatNumber(c.sharesCount),
             قيمة_التحصيل: formatCurrency(c.sharesValue),
+            رقم_الشهر: formatNumber(month.monthNum),
           });
           waBtn.href = buildWhatsAppLink(c.memberPhone, message);
         }
