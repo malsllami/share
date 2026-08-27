@@ -5,7 +5,7 @@ import { renderAppHeader, wireHeaderEvents } from '../components/Header.js';
 import { openModal, closeModal } from '../components/Modal.js';
 import { showToast } from '../components/Toast.js';
 import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits } from '../utils/numbers.js';
-import { renderDualDateHtml, formatDualDate, computeDurationProgress, computeMonthProgress, renderProgressBarHtml } from '../utils/dates.js';
+import { renderDualDateHtml, formatDualDate, computeDurationProgress, computeMonthProgress, renderProgressBarHtml, computeMonthDueDate } from '../utils/dates.js';
 import { buildFullPhone, extractLocalPart, formatPhoneDisplay, renderPhoneInputGroup, bindPhoneLocalInput } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading, withCardLoading } from '../components/Button.js';
@@ -811,7 +811,7 @@ async function showMonthsSubTab(subContent, assoc) {
     el.innerHTML =
       '<div class="flex-between"><span style="font-weight:800">الشهر ' + formatNumber(m.monthNum) + stateBadge + '</span>' +
       '<span class="badge badge-' + (m.closed ? 'gray' : 'warning') + '">' + (m.closed ? 'مغلق' : 'مفتوح') + '</span></div>' +
-      renderDualDateHtml(m.date) +
+      renderDualDateHtml(computeMonthDueDate(m.date)) +
       '<div class="fin-summary mt-16">' +
         '<div class="fin-summary-card info">' +
           '<div class="fin-summary-cols">' +
@@ -919,7 +919,7 @@ async function showMonthDetailModal(subContent, assoc, month) {
             الاسم: d.memberName,
             عدد_الاسهم: formatNumber(totalShares),
             رقم_الشهر: formatNumber(d.monthNum),
-            التاريخ: formatDualDate(month.date).combined,
+            التاريخ: formatDualDate(computeMonthDueDate(month.date)).combined,
             اسهم_التسليم: formatNumber(d.sharesCount),
             المتبقي: formatCurrency(remaining),
             تاريخ_الوقت: now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('ar-SA'),

@@ -4,7 +4,7 @@
 // حالات البطاقة: أخضر = يتسع لسهم كامل على الأقل | برتقالي = يتسع لنصف سهم فقط (0.5 – <1)
 // أحمر = لا يتسع حتى لنصف سهم، أو الشهر مغلق، أو لا يملك العضو أسهماً متبقية للتوزيع
 import { formatCurrency, formatNumber } from '../utils/numbers.js';
-import { renderDualDateHtml } from '../utils/dates.js';
+import { renderDualDateHtml, computeMonthDueDate } from '../utils/dates.js';
 
 // months: نتيجة getMonthsWithTotals | assoc: {shareValue, duration, monthlyTotal}
 // memberSharesLeft: أسهم العضو غير المُوزَّعة على أي شهر بعد (تشمل ما وُزِّع في الشهر الحالي إن وُجد اختيار سابق)
@@ -42,7 +42,7 @@ export function renderWishMonthPicker(container, { assoc, months, memberSharesLe
     card.className = 'wish-month-card state-' + state + (existing ? ' selected' : '') + (m.closed ? ' closed' : '');
     card.innerHTML =
       '<div class="wish-month-num">' + formatNumber(m.monthNum) + '<span class="wish-month-badge-dot"></span></div>' +
-      renderDualDateHtml(m.date) +
+      renderDualDateHtml(computeMonthDueDate(m.date)) +
       '<div class="wish-month-mini">الموجود: ' + formatCurrency(m.availRiyal) + '<br>المُخصَّص: ' + formatCurrency(m.usedRiyal) + '</div>' +
       '<div class="wish-month-remaining">المتبقي: ' + formatCurrency(m.remainRiyal) + '</div>' +
       (existing ? '<div class="wish-month-info">لك ' + formatNumber(existingShares) + ' سهم هنا</div>' : '') +

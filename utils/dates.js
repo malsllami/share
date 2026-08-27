@@ -96,6 +96,19 @@ export function renderProgressBarHtml(percent, colorClass) {
   return '<div class="progress-bar"><div class="progress-bar-fill' + (colorClass ? ' ' + colorClass : '') + '" style="width:' + p + '%"></div></div>';
 }
 
+// نهاية فترة الشهر (بداية الشهر التالي) — تاريخ "الاستحقاق" الفعلي لتحصيل/تسليم أي شهر هو دائماً
+// نهايته، وليس بدايته، رغم أن عمود "تاريخ الشهر" بقاعدة البيانات يخزّن بداية الفترة فقط (نفس تعريف
+// "جارٍ حتى نهايته الكاملة" في computeMonthProgress أعلاه بالضبط). تُستخدَم في كل مكان يُعرض فيه
+// تاريخ شهر للمستخدم (بطاقات الأشهر، منتقي الرغبات، رسائل واتساب) بدل عرض تاريخ البداية مباشرة —
+// عرض البداية كان يوهم أن الاستحقاق أول الشهر بدل آخره.
+export function computeMonthDueDate(monthStartDate) {
+  const start = new Date(monthStartDate);
+  if (isNaN(start)) return null;
+  const due = new Date(start);
+  due.setMonth(due.getMonth() + 1);
+  return due;
+}
+
 // عدد الأيام من الآن إلى تاريخ مُعطى (سالب إن كان التاريخ ماضياً) — للعدّ التنازلي لشهر الاستلام
 export function daysUntil(dateInput) {
   const d = new Date(dateInput);

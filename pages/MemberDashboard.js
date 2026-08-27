@@ -6,7 +6,7 @@ import { renderAppHeader, wireHeaderEvents } from '../components/Header.js';
 import { openModal, closeModal } from '../components/Modal.js';
 import { showToast } from '../components/Toast.js';
 import { formatCurrency, formatNumber, bindDigitNormalization, normalizeDigits } from '../utils/numbers.js';
-import { computeDurationProgress, renderProgressBarHtml, daysUntil } from '../utils/dates.js';
+import { computeDurationProgress, renderProgressBarHtml, daysUntil, computeMonthDueDate } from '../utils/dates.js';
 import { formatPhoneDisplay } from '../utils/phone.js';
 import { isValidSharesCount } from '../utils/validators.js';
 import { withButtonLoading, withCardLoading } from '../components/Button.js';
@@ -67,18 +67,6 @@ function buildMyProgressCardHtml(activeAssoc, prog) {
 // الاستحقاق، بتلوين محدَّد: أخضر = تم الاستلام فعلاً، أزرق = أقل من 30 يوماً متبقياً،
 // برتقالي = 30 يوماً فأكثر متبقياً — نظام ألوان مختلف عمداً عن بطاقة "أشهر استلامي المحدَّدة"
 // الأقدم (أحمر/ذهبي/محايد) المستخدَمة داخل تفصيل الجمعية؛ الاثنتان تتعايشان لغرضين مختلفين
-// نهاية فترة الشهر (بداية الشهر التالي) — تاريخ "الاستحقاق" الفعلي دائماً هو نهاية الشهر، وليس
-// بدايته (نفس تعريف "past/current/future" في computeMonthProgress بـutils/dates.js بالضبط: شهر
-// جارٍ يبقى "جارياً" حتى نهايته الكاملة). daysUntil على تاريخ البداية مباشرة كان يُظهر "مستحق الآن"
-// فور بداية الشهر بدل بقية أيامه — خطأ صُحِّح صراحة بعد ملاحظة محمد
-function monthDueDate_(monthStartDate) {
-  const start = new Date(monthStartDate);
-  if (isNaN(start)) return null;
-  const due = new Date(start);
-  due.setMonth(due.getMonth() + 1);
-  return due;
-}
-
 function buildMyEntitlementCardHtml(activeAssoc, deliveryRows, monthDateByNum) {
   if (!deliveryRows || deliveryRows.length === 0) {
     return (
@@ -92,7 +80,7 @@ function buildMyEntitlementCardHtml(activeAssoc, deliveryRows, monthDateByNum) {
       state = 'state-done'; countdownClass = 'done';
       countdownText = 'تم الاستلام' + (r.confirmDate ? ' — ' + new Date(r.confirmDate).toLocaleDateString('en-GB') : '');
     } else {
-      const d = daysUntil(monthDueDate_(monthDateByNum.get(Number(r.monthNum))));
+      const d = daysUntil(computeMonthDueDate(monthDateByNum.get(Number(r.monthNum))));
       if (d === null || d < 30) {
         state = 'state-soon-blue'; countdownClass = 'soon-blue';
         countdownText = (d === null || d <= 0) ? 'مستحق الآن' : 'خلال ' + formatNumber(d) + ' يوم';
