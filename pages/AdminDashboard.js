@@ -477,7 +477,7 @@ function renderTransactionsListHtml(txs) {
 
 /* ══════════════════ الإعدادات ══════════════════ */
 const MESSAGE_PLACEHOLDER_HINTS = {
-  collection: '{الاسم} {عدد_الاسهم} {قيمة_التحصيل} {رقم_الشهر}',
+  collection: '{الاسم} {عدد_الاسهم} {قيمة_التحصيل} {رقم_الشهر} {التاريخ}',
   delivery: '{الاسم} {عدد_الاسهم} {رقم_الشهر} {التاريخ} {اسهم_التسليم} {المتبقي} {تاريخ_الوقت}',
 };
 
@@ -1027,6 +1027,7 @@ async function showMonthDetailModal(subContent, assoc, month) {
             عدد_الاسهم: formatNumber(c.sharesCount),
             قيمة_التحصيل: formatCurrency(c.sharesValue),
             رقم_الشهر: formatNumber(month.monthNum),
+            التاريخ: formatDualDate(computeMonthDueDate(month.date)).combined,
           });
           waBtn.href = buildWhatsAppLink(c.memberPhone, message);
         }
