@@ -1,21 +1,22 @@
 /* مكوّنات خاصة — شاشة الدخول، بطاقات الجمعية، شبكة الرغبات، شريط السعة (بتصميم مطابق لمشروع "جمعية عائلية" المرجعي) */
 
-/* ── شاشة الدخول ── */
+/* ── شاشة الدخول — كريمية/بيضاء فاتحة، مطابقة لهوية باقي الموقع بعد التحديث (بدل الخلفية الداكنة
+   المنفصلة سابقاً) ── */
 .login-screen {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: var(--ink); padding: 24px; position: relative; overflow: hidden;
+  background: var(--bg); padding: 24px; position: relative; overflow: hidden;
 }
 .login-screen::before {
   content: ''; position: absolute; inset: 0;
-  background: radial-gradient(ellipse 70% 60% at 15% 30%, rgba(45,106,79,0.20) 0%, transparent 65%),
-              radial-gradient(ellipse 50% 50% at 85% 90%, rgba(201,138,43,0.12) 0%, transparent 65%);
+  background: radial-gradient(ellipse 70% 60% at 15% 30%, rgba(45,106,79,0.10) 0%, transparent 65%),
+              radial-gradient(ellipse 50% 50% at 85% 90%, rgba(201,138,43,0.10) 0%, transparent 65%);
   pointer-events: none;
 }
 .login-card {
   position: relative; z-index: 1; width: 100%; max-width: 400px;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.10);
-  border-radius: var(--radius-lg); padding: 40px 32px; backdrop-filter: blur(20px);
-  box-shadow: 0 24px 80px rgba(8,17,30,0.5); color: #eef2f8;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 40px 32px;
+  box-shadow: var(--sh-lg); color: var(--text);
 }
 .login-mark {
   display: block; width: 84px; height: 84px; margin: 0 auto 20px; border-radius: var(--radius);
@@ -23,33 +24,33 @@
   transform: rotate(-4deg); animation: loginFloat 4s ease-in-out infinite;
 }
 @keyframes loginFloat { 0%,100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(-4deg) translateY(-8px); } }
-.login-title { font-family: 'Sora', sans-serif; text-align: center; font-size: 24px; font-weight: 800; margin-bottom: 6px; }
-.login-sub { text-align: center; font-size: 13px; color: rgba(255,255,255,0.55); margin-bottom: 30px; }
-.login-card .form-label { color: rgba(255,255,255,0.6); }
+.login-title { font-family: 'Sora', sans-serif; text-align: center; font-size: 24px; font-weight: 800; margin-bottom: 6px; color: var(--text); }
+.login-sub { text-align: center; font-size: 13px; color: var(--text-3); margin-bottom: 30px; }
+.login-card .form-label { color: var(--text-3); }
 .login-card .form-control {
-  background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.16); color: #fff;
+  background: var(--bg); border-color: var(--border-2); color: var(--text);
   box-shadow: none;
 }
-.login-card .form-control:focus { border-color: var(--indigo-l); background: rgba(255,255,255,0.10); box-shadow: 0 0 0 3px rgba(82,183,136,0.18); }
+.login-card .form-control:focus { border-color: var(--indigo); background: var(--surface); box-shadow: 0 0 0 3px var(--indigo-soft); }
 .login-card .btn-gold { box-shadow: 0 8px 24px rgba(201,138,43,0.4); }
 
-/* زر البصمة — مظهر مجسَّم (نيومورفيزم): "ينبثق" من خلفية شاشة الدخول الداكنة نفسها بظلال مزدوجة
-   ناعمة بدل حدّ مسطّح، ويُغرَق للداخل عند الضغط لإيهام حقيقي بالعمق بلا أي تدرّج لوني صارخ */
+/* زر البصمة — مظهر مجسَّم (نيومورفيزم) فاتح: "ينبثق" من خلفية البطاقة الفاتحة نفسها بظلال مزدوجة
+   ناعمة (ظل داكن خفيف + بريق أبيض) بدل حدّ مسطّح، ويُغرَق للداخل عند الضغط لإيهام حقيقي بالعمق */
 .bio-btn {
   width: 100%; margin-top: 18px; border: none; border-radius: var(--pill);
   padding: 14px; display: flex; align-items: center; justify-content: center; gap: 10px;
-  color: var(--gold); background: var(--ink); cursor: pointer; font-weight: 700; font-size: 13.5px;
-  box-shadow: 6px 6px 14px rgba(0,0,0,0.55), -5px -5px 12px rgba(255,255,255,0.035);
+  color: var(--gold-d); background: var(--surface); cursor: pointer; font-weight: 700; font-size: 13.5px;
+  box-shadow: 6px 6px 14px rgba(27,55,40,0.16), -5px -5px 12px rgba(255,255,255,0.9);
   transition: box-shadow .22s var(--ease), transform .15s var(--ease);
 }
-.bio-btn:hover:not(:disabled) { box-shadow: 4px 4px 10px rgba(0,0,0,0.5), -4px -4px 9px rgba(255,255,255,0.05); }
+.bio-btn:hover:not(:disabled) { box-shadow: 4px 4px 10px rgba(27,55,40,0.14), -4px -4px 9px rgba(255,255,255,0.95); }
 .bio-btn:active:not(:disabled) {
-  box-shadow: inset 4px 4px 9px rgba(0,0,0,0.6), inset -3px -3px 8px rgba(255,255,255,0.03);
+  box-shadow: inset 4px 4px 9px rgba(27,55,40,0.18), inset -3px -3px 8px rgba(255,255,255,0.6);
   transform: scale(.99);
 }
 .bio-btn:disabled { opacity: .5; cursor: not-allowed; }
 .bio-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.bio-icon .icon-svg { width: 20px; height: 20px; color: var(--gold); }
+.bio-icon .icon-svg { width: 20px; height: 20px; color: var(--gold-d); }
 .bio-btn.btn-loading .bio-icon { opacity: 0; }
 
 /* زر البصمة/الوجه الأساسي بالشاشة الرئيسية لصفحة الدخول — أيقونة أكبر وخلفية دائرية ذهبية خفيفة
@@ -74,14 +75,14 @@
 }
 .bio-btn.btn-loading::after { background: repeating-conic-gradient(rgba(201,138,43,0.35) 0deg 6deg, transparent 6deg 20deg); }
 .bio-btn.btn-loading::before {
-  background: conic-gradient(from 0deg, transparent 0deg, var(--gold-l) 16deg, transparent 60deg);
-  mix-blend-mode: screen; animation: verifyRingSpin 4.8s linear infinite;
+  background: conic-gradient(from 0deg, transparent 0deg, var(--gold-d) 16deg, transparent 60deg);
+  mix-blend-mode: multiply; animation: verifyRingSpin 4.8s linear infinite;
 }
 @keyframes verifyRingSpin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .bio-btn.btn-loading::before { animation: none; opacity: .6; } }
 
-.login-back { display: block; text-align: center; margin-top: 16px; font-size: 12px; color: rgba(255,255,255,0.45); background: none; border: none; cursor: pointer; }
-.login-back:hover { color: rgba(255,255,255,0.7); }
+.login-back { display: block; text-align: center; margin-top: 16px; font-size: 12px; color: var(--text-3); background: none; border: none; cursor: pointer; }
+.login-back:hover { color: var(--text-2); }
 
 /* ── مجموعة إدخال الجوال: +966 ثابتة دائماً + المستخدم يُدخل الجزء المحلي فقط (5xxxxxxxx) ── */
 .phone-input-group {
@@ -99,10 +100,8 @@
   border: none; background: transparent; flex: 1; min-width: 0; padding: 12px 14px;
   outline: none; color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums;
 }
-.login-card .phone-input-group { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.16); }
-.login-card .phone-input-group .phone-prefix { background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.6); border-color: rgba(255,255,255,0.16); }
-.login-card .phone-input-group .phone-local-input { color: #fff; }
-.login-card .phone-input-group:focus-within { border-color: var(--indigo-l); box-shadow: 0 0 0 3px rgba(82,183,136,0.18); }
+/* لوحة الدخول الآن فاتحة كباقي الموقع — .phone-input-group تُستخدَم بألوانها الافتراضية بلا أي
+   استثناء داكن خاص بها (كانت هذه القواعد تفرض زجاجاً داكناً شفافاً حين كانت شاشة الدخول داكنة) */
 
 /* ── بطاقة الجمعية ── */
 .assoc-card { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--border-2); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--sh); cursor: pointer; transition: all .22s var(--ease); }
