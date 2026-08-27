@@ -14,24 +14,13 @@ body {
   transition: background .22s ease, color .22s ease;
   position: relative;
 }
-/* تدرّج خلفية شبكي خفيف — نفس توقيع المرجع البصري */
+/* تدرّج خلفية شبكي خفيف — أخضر/ذهبي دافئ بدل النيلي/الذهبي السابق، بلا أي تفرّع للوضع الداكن
+   (لا مبدّل وضع في الواجهة إطلاقاً — لوحة واحدة ثابتة دائماً، بصرف النظر عن إعداد الجهاز) */
 body::before {
   content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(59,91,219,0.08) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(240,180,41,0.06) 0%, transparent 60%);
-}
-@media (prefers-color-scheme: dark) {
-  body::before {
-    background:
-      radial-gradient(ellipse 80% 50% at 20% 0%, rgba(59,91,219,0.15) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 40% at 80% 100%, rgba(240,180,41,0.10) 0%, transparent 60%);
-  }
-}
-:root[data-theme="dark"] ~ body::before, [data-theme="dark"] body::before {
-  background:
-    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(59,91,219,0.15) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(240,180,41,0.10) 0%, transparent 60%);
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(45,106,79,0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(201,138,43,0.08) 0%, transparent 60%);
 }
 button, input, select, textarea { font-family: inherit; font-size: 14px; }
 a { color: inherit; }
@@ -55,11 +44,11 @@ a { color: inherit; }
 .app-user { display: flex; align-items: center; gap: 10px; }
 .app-user .name { font-size: 13px; opacity: .9; }
 .icon-btn {
-  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: #fff;
+  background: var(--indigo-soft); border: 1px solid var(--border); color: var(--indigo-text);
   width: 36px; height: 36px; border-radius: 14px; cursor: pointer;
   display: flex; align-items: center; justify-content: center; transition: all .22s var(--ease);
 }
-.icon-btn:hover { background: rgba(255,255,255,0.16); transform: rotate(20deg) scale(1.08); }
+.icon-btn:hover { background: var(--indigo); color: #fff; transform: rotate(20deg) scale(1.08); }
 
 .tabs {
   display: flex; gap: 4px; background: var(--surface-2); border: 1px solid var(--border);
@@ -70,7 +59,7 @@ a { color: inherit; }
   cursor: pointer; border: none; background: transparent; color: var(--text-3);
   white-space: nowrap; transition: all .22s var(--ease);
 }
-.tab-btn.active { background: var(--indigo); color: #fff; box-shadow: 0 4px 16px rgba(59,91,219,0.35); }
+.tab-btn.active { background: var(--indigo); color: #fff; box-shadow: 0 4px 16px rgba(45,106,79,0.35); }
 .tab-btn:hover:not(.active) { background: var(--bg-2); color: var(--text); }
 
 /* شريط التنقّل الرئيسي بلوحة المدير (#admin-tabs) — بقرار محمد الصريح: التنقّل السفلي الثابت
@@ -98,6 +87,7 @@ a { color: inherit; }
 .card-title .icon-svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--indigo-text); }
 .section-title { font-family: 'Sora', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
 .section-title::before { content: ''; width: 4px; height: 20px; border-radius: var(--pill); background: linear-gradient(to bottom, var(--indigo), var(--gold)); }
+.section-title .icon-svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--indigo-text); }
 .grid { display: grid; gap: 14px; }
 .grid-2 { grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); }
 .grid-3 { grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); }
@@ -110,19 +100,21 @@ a { color: inherit; }
   .grid-2-fixed { grid-template-columns: 1fr 1fr; }
 }
 
-.stat-card { border-radius: var(--radius-sm); padding: 16px; background: var(--surface-2); border: 1px solid var(--border); }
-.stat-card .n { font-family: 'Sora', sans-serif; font-size: 22px; font-weight: 800; color: var(--gold); }
-.stat-card .l { font-size: 11px; color: var(--text-3); margin-top: 4px; }
-/* بطاقات إحصائية متدرّجة ملوّنة — لإبراز رقم رئيسي بارز (نظرة عامة، ملخصات) */
-.stat-card.blue  { background: linear-gradient(145deg,#1e3a8a,#3b5bdb); border: none; box-shadow: 0 8px 32px rgba(59,91,219,0.35); }
-.stat-card.gold  { background: linear-gradient(145deg,#92400e,#d97706); border: none; box-shadow: 0 8px 32px rgba(217,119,6,0.35); }
-.stat-card.green { background: linear-gradient(145deg,#065f46,#059669); border: none; box-shadow: 0 8px 32px rgba(5,150,105,0.35); }
-.stat-card.purple{ background: linear-gradient(145deg,#4c1d95,#7c3aed); border: none; box-shadow: 0 8px 32px rgba(124,58,237,0.35); }
-.stat-card.orange{ background: linear-gradient(145deg,#9a3412,#f2792e); border: none; box-shadow: 0 8px 32px rgba(242,121,46,0.35); }
-.stat-card.indigo{ background: linear-gradient(145deg,#312e81,#4f46e5); border: none; box-shadow: 0 8px 32px rgba(79,70,229,0.35); }
-.stat-card.blue .n, .stat-card.gold .n, .stat-card.green .n, .stat-card.purple .n, .stat-card.orange .n, .stat-card.indigo .n { color: #fff; }
-.stat-card.blue .l, .stat-card.gold .l, .stat-card.green .l, .stat-card.purple .l, .stat-card.orange .l, .stat-card.indigo .l { color: rgba(255,255,255,0.72); }
-.stat-card .icon-svg { width: 18px; height: 18px; }
+/* بطاقة مؤشر (KPI) بيضاء/فاتحة بأيقونة صغيرة ملوّنة — مطابقة للتصميم المرجعي الأصلي بدل بطاقة
+   متدرّجة كاملة اللون (كانت البطاقات الست بنظرة عامة تُغرق الصفحة بألوان صارخة كاملة) */
+.kpi-flat-card { border-radius: var(--radius-sm); padding: 16px; background: var(--surface); border: 1px solid var(--border); }
+.kpi-flat-card .n { font-family: 'Sora', sans-serif; font-size: 21px; font-weight: 800; color: var(--text); margin-top: 10px; }
+.kpi-flat-card .l { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+.kpi-flat-icon { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.kpi-flat-icon .icon-svg { width: 18px; height: 18px; }
+/* ألوان تنويعية مستقلة عن هوية العلامة (الأخضر/الذهبي) — الغرض الوحيد هنا تمييز الست بطاقات
+   بصرياً عن بعضها، لا علاقة لها بأي مؤشر أداء أو نسبة (لذا لا تخضع لقاعدة الألوان الديناميكية) */
+.kpi-flat-icon.blue   { background: rgba(59,91,219,0.12); color: #3b5bdb; }
+.kpi-flat-icon.indigo { background: rgba(79,70,229,0.12); color: #4f46e5; }
+.kpi-flat-icon.purple { background: rgba(124,58,237,0.12); color: var(--purple); }
+.kpi-flat-icon.gold   { background: var(--gold-soft); color: var(--gold-d); }
+.kpi-flat-icon.green  { background: var(--success-soft); color: var(--success); }
+.kpi-flat-icon.orange { background: rgba(217,117,43,0.14); color: var(--orange); }
 
 /* شبكة 6 بطاقات KPI متساوية — 3 أعمدة على الشاشات العريضة، عمودان على الجوال */
 .kpi-grid-6 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
@@ -146,10 +138,10 @@ select.form-control { cursor: pointer; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 11px 20px; border-radius: var(--pill); border: none; cursor: pointer; font-weight: 700; font-size: 13px; transition: all .22s var(--spring); white-space: nowrap; }
 .btn:active { transform: scale(.96); }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
-.btn-primary { background: linear-gradient(135deg, var(--indigo), var(--indigo-l)); color: #fff; box-shadow: 0 4px 16px rgba(59,91,219,0.35); }
-.btn-primary:hover:not(:disabled) { box-shadow: 0 8px 24px rgba(59,91,219,0.5); transform: translateY(-2px); }
-.btn-gold { background: linear-gradient(135deg, var(--gold-d), var(--gold)); color: var(--ink); box-shadow: 0 4px 16px rgba(240,180,41,0.35); }
-.btn-gold:hover:not(:disabled) { box-shadow: 0 8px 24px rgba(240,180,41,0.5); transform: translateY(-2px); }
+.btn-primary { background: linear-gradient(135deg, var(--indigo), var(--indigo-l)); color: #fff; box-shadow: 0 4px 16px rgba(45,106,79,0.35); }
+.btn-primary:hover:not(:disabled) { box-shadow: 0 8px 24px rgba(45,106,79,0.5); transform: translateY(-2px); }
+.btn-gold { background: linear-gradient(135deg, var(--gold-d), var(--gold)); color: #fff; box-shadow: 0 4px 16px rgba(201,138,43,0.35); }
+.btn-gold:hover:not(:disabled) { box-shadow: 0 8px 24px rgba(201,138,43,0.5); transform: translateY(-2px); }
 .btn-success { background: linear-gradient(135deg, #065f46, var(--success)); color: #fff; }
 .btn-success:hover:not(:disabled) { transform: translateY(-2px); }
 .btn-danger { background: linear-gradient(135deg, #7f1d1d, var(--danger)); color: #fff; }

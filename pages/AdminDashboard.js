@@ -40,38 +40,23 @@ let activeTabToken_ = 0;
 export async function renderAdminDashboard(root, { session, onLogout }) {
   // لا شريط جانبي ولا علوي بديل على أي حجم شاشة (بقرار محمد الصريح) — #admin-tabs يبقى مخفياً دائماً
   // (انظر styles/base.css)، والتنقّل الفعلي الوحيد هو الشريط السفلي الثابت (.bottom-nav) على كل الأحجام
-  root.innerHTML = renderAppHeader({ memberName: session.memberName, isAdmin: true, bellCount: 0 }) +
+  root.innerHTML = renderAppHeader({ memberName: session.memberName, isAdmin: true }) +
     '<div class="container admin-page-container" style="padding-top:22px">' +
       '<div class="tabs" id="admin-tabs"></div>' +
       '<div id="admin-content"></div>' +
     '</div>' +
     renderBottomNavHtml(ADMIN_PRIMARY_ITEMS, ADMIN_MORE_ITEMS);
-  wireHeaderEvents(root, onLogout, () => showToast('راجع قسم "تنبيهات هامة" أسفل نظرة عامة', 'info'));
+  wireHeaderEvents(root, onLogout);
 
   const tabsEl = root.querySelector('#admin-tabs');
   const content = root.querySelector('#admin-content');
-
-  // عدد التنبيهات الحقيقي (من نفس حزمة نظرة عامة، بلا رحلة شبكة إضافية) — يُحدَّث في شارة الجرس
-  // بالرأس مباشرة بلا إعادة رسم الرأس بالكامل (يحافظ على مستمعي الأحداث الحالية بلا إعادة ربط)
-  function updateBellBadge(count) {
-    const btn = root.querySelector('#header-bell-btn');
-    if (!btn) return;
-    const old = btn.querySelector('.bell-badge');
-    if (old) old.remove();
-    if (count > 0) {
-      const span = document.createElement('span');
-      span.className = 'bell-badge';
-      span.textContent = count > 9 ? '9+' : String(count);
-      btn.appendChild(span);
-    }
-  }
 
   function activate(tabId) {
     const token = ++activeTabToken_;
     const isStale = () => token !== activeTabToken_;
     tabsEl.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
     updateBottomNavActive(root, tabId, ADMIN_PRIMARY_ITEMS);
-    if (tabId === 'overview') showOverviewTab(content, activate, session, isStale, updateBellBadge);
+    if (tabId === 'overview') showOverviewTab(content, activate, session, isStale);
     else if (tabId === 'reports') showReportsTab(content, isStale);
     else if (tabId === 'transactions') showTransactionsTab(content, isStale);
     else if (tabId === 'my-associations') renderMemberAssociationsView(content, session, isStale);
@@ -89,13 +74,13 @@ export async function renderAdminDashboard(root, { session, onLogout }) {
 }
 
 /* ══════════════════ نظرة عامة ══════════════════ */
-// بطاقة مؤشر متدرّجة صغيرة — أيقونة بيضاء شبه شفافة + رقم بارز + تسمية، تُبنى فوق .stat-card
-// الموجودة أصلاً (blue/gold/green/purple + orange الجديد) بدل بطاقات مسطّحة بيضاء/سوداء بلا تمييز
+// بطاقة مؤشر (KPI) بيضاء/فاتحة بأيقونة صغيرة ملوّنة داخل شارة دائرية — مطابقة للتصميم المرجعي
+// الأصلي (وليس بطاقة متدرّجة كاملة اللون) — قرار محمد الصريح بعد المعاينة الأولى
 function statCard(color, iconSvg, value, label, compactValue) {
   return (
-    '<div class="stat-card ' + color + '">' +
-      '<div style="color:#fff;opacity:.85">' + iconSvg + '</div>' +
-      '<div class="n" style="margin-top:8px' + (compactValue ? ';font-size:15px' : '') + '">' + value + '</div>' +
+    '<div class="kpi-flat-card">' +
+      '<div class="kpi-flat-icon ' + color + '">' + iconSvg + '</div>' +
+      '<div class="n"' + (compactValue ? ' style="font-size:15px"' : '') + '>' + value + '</div>' +
       '<div class="l">' + label + '</div>' +
     '</div>'
   );
@@ -205,7 +190,7 @@ function renderActivityFeedHtml(activity) {
   ).join('');
 }
 
-async function showOverviewTab(content, activate, session, isStale, updateBellBadge) {
+async function showOverviewTab(content, activate, session, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let bundle;
   try {
@@ -226,8 +211,6 @@ async function showOverviewTab(content, activate, session, isStale, updateBellBa
   const activeAssoc = associations.find(a => a.status === 'نشطة') || null;
   const freshAssoc = associations.find(a => a.status === 'جديدة') || null;
   const activeSummary = activeAssoc ? summaryByAssoc[activeAssoc.id] : null;
-
-  if (updateBellBadge) updateBellBadge((alerts || []).length);
 
   // إجمالي رأس المال (الجمعية النشطة فقط) = عدد المشتركين × مدة الجمعية بالأشهر × قيمة السهم — الثلاثة
   // أعمدة مخزَّنة فعلياً بجدول الجمعيات، فهذا حساب حقيقي 100٪ وليس بيانات وهمية (تحديد محمد صراحة)

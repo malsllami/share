@@ -7,8 +7,8 @@
 }
 .login-screen::before {
   content: ''; position: absolute; inset: 0;
-  background: radial-gradient(ellipse 70% 60% at 15% 30%, rgba(59,91,219,0.20) 0%, transparent 65%),
-              radial-gradient(ellipse 50% 50% at 85% 90%, rgba(240,180,41,0.12) 0%, transparent 65%);
+  background: radial-gradient(ellipse 70% 60% at 15% 30%, rgba(45,106,79,0.20) 0%, transparent 65%),
+              radial-gradient(ellipse 50% 50% at 85% 90%, rgba(201,138,43,0.12) 0%, transparent 65%);
   pointer-events: none;
 }
 .login-card {
@@ -19,7 +19,7 @@
 }
 .login-mark {
   display: block; width: 84px; height: 84px; margin: 0 auto 20px; border-radius: var(--radius);
-  object-fit: cover; box-shadow: 0 20px 60px rgba(240,180,41,0.35);
+  object-fit: cover; box-shadow: 0 20px 60px rgba(201,138,43,0.35);
   transform: rotate(-4deg); animation: loginFloat 4s ease-in-out infinite;
 }
 @keyframes loginFloat { 0%,100% { transform: rotate(-4deg) translateY(0); } 50% { transform: rotate(-4deg) translateY(-8px); } }
@@ -30,8 +30,8 @@
   background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.16); color: #fff;
   box-shadow: none;
 }
-.login-card .form-control:focus { border-color: var(--indigo-l); background: rgba(255,255,255,0.10); box-shadow: 0 0 0 3px rgba(116,143,252,0.18); }
-.login-card .btn-gold { box-shadow: 0 8px 24px rgba(240,180,41,0.4); }
+.login-card .form-control:focus { border-color: var(--indigo-l); background: rgba(255,255,255,0.10); box-shadow: 0 0 0 3px rgba(82,183,136,0.18); }
+.login-card .btn-gold { box-shadow: 0 8px 24px rgba(201,138,43,0.4); }
 
 /* زر البصمة — مظهر مجسَّم (نيومورفيزم): "ينبثق" من خلفية شاشة الدخول الداكنة نفسها بظلال مزدوجة
    ناعمة بدل حدّ مسطّح، ويُغرَق للداخل عند الضغط لإيهام حقيقي بالعمق بلا أي تدرّج لوني صارخ */
@@ -55,7 +55,7 @@
 /* زر البصمة/الوجه الأساسي بالشاشة الرئيسية لصفحة الدخول — أيقونة أكبر وخلفية دائرية ذهبية خفيفة
    خلفها لزيادة وزنها البصري ووضوحها فوراً كأول ما تقع عليه العين، بلا أي تغيير على النص نفسه */
 #login-primary-bio-btn .bio-icon {
-  width: 30px; height: 30px; border-radius: 50%; background: rgba(240,180,41,0.14);
+  width: 30px; height: 30px; border-radius: 50%; background: rgba(201,138,43,0.14);
 }
 #login-primary-bio-btn .bio-icon .icon-svg { width: 24px; height: 24px; }
 
@@ -72,7 +72,7 @@
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
           mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 3px));
 }
-.bio-btn.btn-loading::after { background: repeating-conic-gradient(rgba(240,180,41,0.35) 0deg 6deg, transparent 6deg 20deg); }
+.bio-btn.btn-loading::after { background: repeating-conic-gradient(rgba(201,138,43,0.35) 0deg 6deg, transparent 6deg 20deg); }
 .bio-btn.btn-loading::before {
   background: conic-gradient(from 0deg, transparent 0deg, var(--gold-l) 16deg, transparent 60deg);
   mix-blend-mode: screen; animation: verifyRingSpin 4.8s linear infinite;
@@ -102,7 +102,7 @@
 .login-card .phone-input-group { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.16); }
 .login-card .phone-input-group .phone-prefix { background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.6); border-color: rgba(255,255,255,0.16); }
 .login-card .phone-input-group .phone-local-input { color: #fff; }
-.login-card .phone-input-group:focus-within { border-color: var(--indigo-l); box-shadow: 0 0 0 3px rgba(116,143,252,0.18); }
+.login-card .phone-input-group:focus-within { border-color: var(--indigo-l); box-shadow: 0 0 0 3px rgba(82,183,136,0.18); }
 
 /* ── بطاقة الجمعية ── */
 .assoc-card { background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--border-2); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--sh); cursor: pointer; transition: all .22s var(--ease); }
@@ -125,7 +125,7 @@
 
 .wish-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 10px; }
 .wish-month-card { border: 2px solid var(--border); border-radius: var(--radius); padding: 14px 12px; text-align: center; cursor: pointer; transition: all .22s var(--spring); background: var(--surface); }
-.wish-month-card:hover { transform: translateY(-2px); border-color: var(--indigo); box-shadow: 0 0 32px rgba(59,91,219,0.22); }
+.wish-month-card:hover { transform: translateY(-2px); border-color: var(--indigo); box-shadow: 0 0 32px rgba(45,106,79,0.22); }
 .wish-month-card.selected { border-color: var(--success); background: rgba(18,184,134,0.06); box-shadow: 0 0 28px rgba(18,184,134,0.18); }
 .wish-month-card.closed { opacity: .4; pointer-events: none; }
 
@@ -196,8 +196,8 @@
 .bottom-nav {
   display: flex;
   position: fixed; bottom: 0; right: 0; left: 0; z-index: 150;
-  background: var(--header-bg); border-top: 1px solid rgba(255,255,255,0.08);
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
+  background: var(--surface); border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(20,37,29,0.10);
   padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
 }
 /* تفادي إخفاء آخر عنصر بالصفحة خلف الشريط الثابت — مُطبَّقة على حاوية صفحة المدير تحديداً (وليس كل
@@ -205,14 +205,14 @@
 .admin-page-container { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
 /* على الشاشات الأوسع من الجوال: شريط بعرض محدود متمركز أسفل الصفحة بدل تمدّده الكامل بلا داعٍ */
 @media (min-width: 641px) {
-  .bottom-nav { right: 50%; left: auto; transform: translateX(50%); max-width: 480px; border-radius: var(--radius) var(--radius) 0 0; border-inline: 1px solid rgba(255,255,255,0.08); }
+  .bottom-nav { right: 50%; left: auto; transform: translateX(50%); max-width: 480px; border-radius: var(--radius) var(--radius) 0 0; border-inline: 1px solid var(--border); }
 }
 .bottom-nav-item {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  background: none; border: none; color: rgba(255,255,255,0.55); cursor: pointer; padding: 7px 2px;
+  background: none; border: none; color: var(--text-3); cursor: pointer; padding: 7px 2px;
   border-radius: var(--radius-sm); transition: all .2s var(--ease);
 }
-.bottom-nav-item.active { color: var(--gold); }
+.bottom-nav-item.active { color: #fff; background: var(--indigo); }
 .bottom-nav-item:active { transform: scale(.92); }
 .bn-icon { display: flex; }
 .bn-icon .icon-svg { width: 19px; height: 19px; }
@@ -301,7 +301,7 @@
 }
 .mpc-header::before {
   content: ''; position: absolute; top: -50px; left: -50px; width: 200px; height: 200px;
-  border-radius: 50%; background: radial-gradient(circle, rgba(59,91,219,0.25) 0%, transparent 70%);
+  border-radius: 50%; background: radial-gradient(circle, rgba(45,106,79,0.25) 0%, transparent 70%);
 }
 .mpc-avatar {
   width: 60px; height: 60px; border-radius: var(--pill);
@@ -352,10 +352,8 @@
    في بطاقة "أشهر استلامي المحدَّدة" الأقدم — الاثنتان تتعايشان لغرضين مختلفين) */
 .mpc-delivery-row.state-soon-blue .mpc-delivery-month { background: linear-gradient(135deg, #1d4ed8, #3b82f6); }
 .mpc-delivery-row.state-far-orange .mpc-delivery-month { background: linear-gradient(135deg, #9a3412, var(--orange)); }
-.mpc-delivery-countdown.soon-blue { color: #3b82f6; background: rgba(59,130,246,0.16); border-color: transparent; }
+.mpc-delivery-countdown.soon-blue { color: #1d4ed8; background: rgba(59,130,246,0.14); border-color: transparent; }
 .mpc-delivery-countdown.far-orange { color: var(--orange); background: rgba(242,121,46,0.14); border-color: transparent; }
-@media (prefers-color-scheme: dark) { .mpc-delivery-countdown.soon-blue { color: #60a5fa; } }
-:root[data-theme="dark"] .mpc-delivery-countdown.soon-blue { color: #60a5fa; }
 
 /* ═══════════════════ حلقة توزيع (Donut) — CSS محض عبر conic-gradient، بلا أي مكتبة رسوم ═══════════════════ */
 .donut-wrap { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -449,7 +447,3 @@
 .tx-row-amount { font-family: 'Sora', sans-serif; font-weight: 800; font-size: 13px; flex-shrink: 0; }
 .tx-row-amount.in { color: var(--success); }
 .tx-row-amount.out { color: var(--indigo-text); }
-
-/* ═══════════════════ جرس الإشعارات بالرأس — عداد حقيقي = عدد التنبيهات المحسوبة، بلا جدول جديد ═══════════════════ */
-.bell-btn { position: relative; }
-.bell-badge { position: absolute; top: -4px; inset-inline-end: -4px; min-width: 16px; height: 16px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 9.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 3px; }

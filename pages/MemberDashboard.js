@@ -27,29 +27,16 @@ const STATUS_LABEL = { 'جديدة': 'جديدة', 'نشطة': 'نشطة', 'من
 // الرئيسية بمسمى منفصل، بقرار محمد الصريح). "الرؤى" و"الرئيسية" يعرضان نفس renderMemberAssociationsView
 // بالضبط عمداً؛ الفارق مسمى التبويب النشط فقط في الشريط السفلي.
 export async function renderMemberDashboard(root, { session, onLogout }) {
-  root.innerHTML = renderAppHeader({ memberName: session.memberName, isAdmin: false, bellCount: 0 }) +
+  root.innerHTML = renderAppHeader({ memberName: session.memberName, isAdmin: false }) +
     '<div class="container" style="padding-top:22px"><div id="member-content"></div></div>' +
     renderBottomNavHtml(MEMBER_PRIMARY_ITEMS, MEMBER_MORE_ITEMS);
   wireHeaderEvents(root, onLogout);
 
   const content = root.querySelector('#member-content');
 
-  function updateBellBadge(count) {
-    const btn = root.querySelector('#header-bell-btn');
-    if (!btn) return;
-    const old = btn.querySelector('.bell-badge');
-    if (old) old.remove();
-    if (count > 0) {
-      const span = document.createElement('span');
-      span.className = 'bell-badge';
-      span.textContent = count > 9 ? '9+' : String(count);
-      btn.appendChild(span);
-    }
-  }
-
   function activate(tabId) {
     updateBottomNavActive(root, tabId, MEMBER_PRIMARY_ITEMS);
-    if (tabId === 'home' || tabId === 'insights') renderMemberAssociationsView(content, session, null, updateBellBadge);
+    if (tabId === 'home' || tabId === 'insights') renderMemberAssociationsView(content, session);
     else if (tabId === 'categories') renderMemberCategoriesView(content, session);
     else if (tabId === 'profile') renderMemberProfileView(content, session, onLogout);
   }
@@ -123,7 +110,7 @@ function navCardHtml(id, icon, title, bodyHtml, accentClass) {
 // بعد كل انتظار شبكي؛ إن أعادت true فهذا يعني أن المدير انتقل لتبويب آخر أثناء الانتظار، فتُتجاهَل
 // نتيجة هذا الاستدعاء بصمت بدل كتابتها فوق محتوى التبويب الجديد الصحيح. عند الاستدعاء المباشر للوحة
 // العضو نفسها (بلا تبويبات متعددة تتنافس على نفس content) يبقى isStale بلا قيمة فلا يُفعَّل أي تجاهل
-export async function renderMemberAssociationsView(content, session, isStale, onBellUpdate) {
+export async function renderMemberAssociationsView(content, session, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let subs, associations, myWishes, members;
   try {
@@ -242,27 +229,6 @@ export async function renderMemberAssociationsView(content, session, isStale, on
   // (قرار محمد الصريح) — التفاصيل كلها الآن داخل نافذة "أجهزتي" المنبثقة بدل الصفحة الرئيسية
   const devicesCardHtml = navCardHtml('nav-devices', '📱', 'أجهزتي',
     '<p class="form-hint" style="margin:0">ربط بصمة جهاز جديد، وإدارة الأجهزة المرتبطة بحسابك</p>', 'accent-indigo');
-
-  // ── تنبيهاتي — من بيانات حقيقية محسوبة فقط (بلا جدول إشعارات جديد): شهر حالي غير مسدَّد بعد،
-  // أو جمعية جديدة متاحة للاشتراك — يُغذّي عداد الجرس بالرأس إن وُجد استدعاء له
-  if (onBellUpdate) {
-    let myAlertCount = 0;
-    if (activeAssoc) {
-      const currentMonth = activeMonths.find(m => {
-        const start = new Date(m.date);
-        if (isNaN(start)) return false;
-        const end = new Date(start); end.setMonth(end.getMonth() + 1);
-        const now = new Date();
-        return now >= start && now < end;
-      });
-      if (currentMonth) {
-        const unpaidNow = activeCollectionRows.some(r => Number(r.monthNum) === Number(currentMonth.monthNum) && !r.collected);
-        if (unpaidNow) myAlertCount++;
-      }
-    }
-    if (available.length > 0) myAlertCount++;
-    onBellUpdate(myAlertCount);
-  }
 
   if (mine.length === 0) {
     content.innerHTML = profileHtml + devicesCardHtml +
