@@ -4,16 +4,16 @@
 import { openModal, closeModal } from './Modal.js';
 import { ICONS } from '../utils/icons.js';
 
-// لوحة المدير — 4 أزرار مباشرة (الرئيسية/الجمعيات/المعاملات/التقارير) + "المزيد" لباقي التبويبات
-// (تحديد محمد الصريح — كانت "التقارير" داخل "المزيد" سابقاً)
+// لوحة المدير — 4 أزرار مباشرة (الرئيسية/الجمعيات/جمعياتي/التقارير) + "المزيد" لباقي التبويبات
+// (تحديد محمد الصريح — "المعاملات" استُبدلت بـ"جمعياتي" بالشريط المباشر، وانتقلت هي لـ"المزيد")
 export const ADMIN_PRIMARY_ITEMS = [
   { id: 'overview', icon: ICONS.chart, label: 'الرئيسية' },
   { id: 'associations', icon: ICONS.building, label: 'الجمعيات' },
-  { id: 'transactions', icon: ICONS.handoff, label: 'المعاملات' },
+  { id: 'my-associations', icon: ICONS.home, label: 'جمعياتي' },
   { id: 'reports', icon: ICONS.donut, label: 'التقارير' },
 ];
 export const ADMIN_MORE_ITEMS = [
-  { id: 'my-associations', icon: ICONS.home, label: 'جمعياتي' },
+  { id: 'transactions', icon: ICONS.handoff, label: 'المعاملات' },
   { id: 'members', icon: ICONS.people, label: 'الأعضاء' },
   { id: 'settings', icon: ICONS.gear, label: 'الإعدادات' },
   { id: 'archive', icon: ICONS.archive, label: 'الأرشيف' },
