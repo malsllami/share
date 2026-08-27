@@ -16,51 +16,46 @@ import { markDeviceBiometricLinked, deviceHasBiometricLinked, clearDeviceBiometr
 import { escapeHtml } from '../utils/sanitize.js';
 import { guessDeviceName, guessBiometricKind, BIOMETRIC_META } from '../utils/deviceBiometric.js';
 import { RP_ID, RP_NAME } from '../config/config.js';
-import { renderDonutHtml } from '../components/Charts.js';
+import { renderDonutHtml, percentBarClass_, renderStatRingHtml } from '../components/Charts.js';
 import { ICONS } from '../utils/icons.js';
+import { renderBottomNavHtml, wireBottomNav, updateBottomNavActive, MEMBER_PRIMARY_ITEMS, MEMBER_MORE_ITEMS } from '../components/BottomNav.js';
 
 const STATUS_LABEL = { 'جديدة': 'جديدة', 'نشطة': 'نشطة', 'منتهية': 'منتهية' };
 
-// بطاقة مؤشر متدرّجة — نفس النمط المستخدَم بلوحة المدير (AdminDashboard.js:statCard) بالضبط، حرفياً
-// لضمان هوية بصرية موحَّدة بين اللوحتين. مكرَّرة محلياً هنا (بدل استيراد من ملف الآخر) بنفس أسلوب
-// بقية الدوال المساعدة الخاصة بكل صفحة في هذا المشروع.
-function statCard(color, iconSvg, value, label, compactValue) {
-  return (
-    '<div class="stat-card ' + color + '">' +
-      '<div style="color:#fff;opacity:.85">' + iconSvg + '</div>' +
-      '<div class="n" style="margin-top:8px' + (compactValue ? ';font-size:15px' : '') + '">' + value + '</div>' +
-      '<div class="l">' + label + '</div>' +
-    '</div>'
-  );
-}
-
+// شريط تنقّل سفلي للوحة العضو لأول مرة (لم يكن موجوداً إطلاقاً سابقاً) — نفس مكوّن BottomNav.js
+// المستخدَم بلوحة المدير، بعناصر عضو مختلفة: الرئيسية/الفئات/الملف + "المزيد" (الرؤى — نفس محتوى
+// الرئيسية بمسمى منفصل، بقرار محمد الصريح). "الرؤى" و"الرئيسية" يعرضان نفس renderMemberAssociationsView
+// بالضبط عمداً؛ الفارق مسمى التبويب النشط فقط في الشريط السفلي.
 export async function renderMemberDashboard(root, { session, onLogout }) {
-  root.innerHTML = renderAppHeader({ memberName: session.memberName, isAdmin: false }) +
-    '<div class="container" style="padding-top:22px"><div id="member-content"></div></div>';
+  root.innerHTML = renderAppHeader({ memberName: session.memberName, isAdmin: false, bellCount: 0 }) +
+    '<div class="container" style="padding-top:22px"><div id="member-content"></div></div>' +
+    renderBottomNavHtml(MEMBER_PRIMARY_ITEMS, MEMBER_MORE_ITEMS);
   wireHeaderEvents(root, onLogout);
 
   const content = root.querySelector('#member-content');
-  await renderMemberAssociationsView(content, session);
-}
 
-// بطاقة "تقدّم جمعيتي النشطة" — شريط تقدّم زمني + الأشهر المتبقية + الأيام المتبقية في بطاقة واحدة،
-// نفس نمط buildProgressCardHtml بلوحة المدير (AdminDashboard.js) بالضبط لكن لجمعية العضو نفسه فقط
-function buildMyProgressCardHtml(activeAssoc, prog) {
-  if (!activeAssoc) {
-    return '<div class="card"><div class="card-title">' + ICONS.target + ' تقدّم جمعيتي النشطة</div><p class="table-empty">لا توجد جمعية نشطة لي حالياً</p></div>';
+  function updateBellBadge(count) {
+    const btn = root.querySelector('#header-bell-btn');
+    if (!btn) return;
+    const old = btn.querySelector('.bell-badge');
+    if (old) old.remove();
+    if (count > 0) {
+      const span = document.createElement('span');
+      span.className = 'bell-badge';
+      span.textContent = count > 9 ? '9+' : String(count);
+      btn.appendChild(span);
+    }
   }
-  return (
-    '<div class="card">' +
-      '<div class="card-title">' + ICONS.target + ' تقدّم ' + activeAssoc.name + '</div>' +
-      '<div class="progress-wrap primary">' + renderProgressBarHtml(prog.percent) +
-        '<div class="progress-label"><span>مضى ' + formatNumber(prog.elapsedMonths) + ' من ' + formatNumber(activeAssoc.duration) + ' شهر</span><span>' + prog.percent + '٪</span></div>' +
-      '</div>' +
-      '<div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">الأشهر المتبقية</div><div class="assoc-meta-val">' + formatNumber(prog.remainingMonths) + '</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">الأيام المتبقية</div><div class="assoc-meta-val">' + formatNumber(prog.remainingDays) + '</div></div>' +
-      '</div>' +
-    '</div>'
-  );
+
+  function activate(tabId) {
+    updateBottomNavActive(root, tabId, MEMBER_PRIMARY_ITEMS);
+    if (tabId === 'home' || tabId === 'insights') renderMemberAssociationsView(content, session, null, updateBellBadge);
+    else if (tabId === 'categories') renderMemberCategoriesView(content, session);
+    else if (tabId === 'profile') renderMemberProfileView(content, session, onLogout);
+  }
+
+  wireBottomNav(root, activate, MEMBER_MORE_ITEMS);
+  activate('home');
 }
 
 // بطاقة "رغباتي واستحقاقي" — طُلبت صراحةً من محمد: كل شهر استلام اخترته + عدد الأيام المتبقية على
@@ -128,7 +123,7 @@ function navCardHtml(id, icon, title, bodyHtml, accentClass) {
 // بعد كل انتظار شبكي؛ إن أعادت true فهذا يعني أن المدير انتقل لتبويب آخر أثناء الانتظار، فتُتجاهَل
 // نتيجة هذا الاستدعاء بصمت بدل كتابتها فوق محتوى التبويب الجديد الصحيح. عند الاستدعاء المباشر للوحة
 // العضو نفسها (بلا تبويبات متعددة تتنافس على نفس content) يبقى isStale بلا قيمة فلا يُفعَّل أي تجاهل
-export async function renderMemberAssociationsView(content, session, isStale) {
+export async function renderMemberAssociationsView(content, session, isStale, onBellUpdate) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let subs, associations, myWishes, members;
   try {
@@ -202,22 +197,20 @@ export async function renderMemberAssociationsView(content, session, isStale) {
       '</div>' +
     '</div>';
 
-  // ── مؤشراتي — نفس نمط "المؤشرات العامة" بلوحة المدير بالضبط (بطاقات متدرّجة بعمودين ثابتين)،
-  // لكن كل الأرقام هنا خاصة بالعضو نفسه فقط في جمعيته النشطة، لا أي بيانات عن أعضاء آخرين ──
+  // ── إجماليات حسابك — 4 حلقات نسبة بلون ديناميكي حسب الفئة (حسب التصميم المرجعي الجديد)، كلها من
+  // بيانات جمعيتي النشطة الحقيقية فقط، لا أي بيانات عن أعضاء آخرين ──
+  const paidPercent = activeEntitlement > 0 ? Math.min(100, Math.round((paidSoFar / activeEntitlement) * 100)) : 0;
+  const receivedSharesCount = activeDeliveryRows.filter(r => r.delivered).reduce((s, r) => s + Number(r.sharesCount), 0);
+  const receivedSharesPercent = activeAssoc && activeAssoc.sub.sharesCount > 0 ? Math.min(100, Math.round((receivedSharesCount / activeAssoc.sub.sharesCount) * 100)) : 0;
   const kpiSectionHtml = !activeAssoc ? '' : (
-    '<div class="section-title">مؤشراتي — ' + activeAssoc.name + '</div>' +
-    '<div class="grid-2-fixed" style="margin-bottom:14px">' +
-      statCard('orange', ICONS.target, activeProg.percent + '٪', 'تقدّم الجمعية النشطة') +
-      buildMyProgressCardHtml(activeAssoc, activeProg) +
+    '<div class="section-title">إجماليات حسابك — ' + activeAssoc.name + '</div>' +
+    '<div class="kpi-ring-grid" style="margin-bottom:18px">' +
+      renderStatRingHtml(paidPercent, formatCurrency(paidSoFar), 'إجمالي المدفوع') +
+      renderStatRingHtml(activeProg.percent, formatNumber(activeAssoc.duration) + ' شهر', 'مدة الجمعية — متبقٍ ' + formatNumber(activeProg.remainingMonths)) +
+      renderStatRingHtml(paidPercent, paidPercent + '٪', 'المدفوع من الأسهم') +
+      renderStatRingHtml(receivedSharesPercent, formatNumber(activeAssoc.sub.sharesCount) + ' سهم', 'أسهمي — مستلم ' + formatNumber(receivedSharesCount)) +
     '</div>' +
-    '<div class="grid-2-fixed" style="margin-bottom:14px">' +
-      statCard('blue', ICONS.wallet, formatNumber(activeAssoc.sub.sharesCount), 'أسهمي في الجمعية النشطة') +
-      statCard('green', ICONS.target, formatCurrency(activeEntitlement), 'إجمالي استحقاقي') +
-    '</div>' +
-    '<div class="grid-2-fixed" style="margin-bottom:18px">' +
-      statCard('purple', ICONS.people, formatCurrency(paidSoFar), 'المدفوع حتى الآن') +
-      statCard('gold', ICONS.building, formatCurrency(remainingToPay), 'المتبقي عليّ') +
-    '</div>'
+    (remainingToPay > 0 ? '<p class="form-hint" style="margin:-10px 0 18px">المتبقي عليك للسداد: ' + formatCurrency(remainingToPay) + '</p>' : '')
   );
 
   // ── توزيع استحقاقي على الأشهر — حلقة توزيع من رغباتي الفعلية في الجمعية النشطة فقط ──
@@ -250,6 +243,27 @@ export async function renderMemberAssociationsView(content, session, isStale) {
   const devicesCardHtml = navCardHtml('nav-devices', '📱', 'أجهزتي',
     '<p class="form-hint" style="margin:0">ربط بصمة جهاز جديد، وإدارة الأجهزة المرتبطة بحسابك</p>', 'accent-indigo');
 
+  // ── تنبيهاتي — من بيانات حقيقية محسوبة فقط (بلا جدول إشعارات جديد): شهر حالي غير مسدَّد بعد،
+  // أو جمعية جديدة متاحة للاشتراك — يُغذّي عداد الجرس بالرأس إن وُجد استدعاء له
+  if (onBellUpdate) {
+    let myAlertCount = 0;
+    if (activeAssoc) {
+      const currentMonth = activeMonths.find(m => {
+        const start = new Date(m.date);
+        if (isNaN(start)) return false;
+        const end = new Date(start); end.setMonth(end.getMonth() + 1);
+        const now = new Date();
+        return now >= start && now < end;
+      });
+      if (currentMonth) {
+        const unpaidNow = activeCollectionRows.some(r => Number(r.monthNum) === Number(currentMonth.monthNum) && !r.collected);
+        if (unpaidNow) myAlertCount++;
+      }
+    }
+    if (available.length > 0) myAlertCount++;
+    onBellUpdate(myAlertCount);
+  }
+
   if (mine.length === 0) {
     content.innerHTML = profileHtml + devicesCardHtml +
       '<div class="card text-center"><p style="color:var(--text-3)">لست مشتركاً في أي جمعية بعد.' +
@@ -260,40 +274,148 @@ export async function renderMemberAssociationsView(content, session, isStale) {
     return;
   }
 
+  // ── آخر العمليات — تحصيل/تسليم مؤكَّد لهذا العضو عبر كل جمعياته (وليس الجمعية النشطة فقط) —
+  // بيانات حقيقية من getMemberTransactions (gas/Activity.gs)، بلا أي رحلة شبكة إضافية داخل نفس
+  // هذا التحميل (نداء واحد مستقل بعد اكتمال المحتوى الرئيسي، فشله لا يمنع عرض بقية اللوحة)
+  let myTransactions = [];
+  try { myTransactions = await callApi('getMemberTransactions', { memberId: session.memberId }); } catch (err) { /* غير حرج */ }
+  if (isStale && isStale()) return;
+  const transactionsSectionHtml =
+    '<div class="section-title">آخر العمليات</div>' +
+    '<div class="card" style="margin-bottom:18px"><div class="tx-list">' + renderMemberTransactionsListHtml(myTransactions) + '</div></div>';
+
   content.innerHTML = profileHtml + kpiSectionHtml + donutSectionHtml + entitlementCardHtml + devicesCardHtml +
     '<div class="section-title">جمعياتي</div>' +
     '<div class="grid grid-2" id="assoc-list"></div>' +
-    availableSectionHtml;
+    availableSectionHtml + transactionsSectionHtml;
   wireDevicesCard(content, session, me, isStale);
 
   const list = content.querySelector('#assoc-list');
-  mine.forEach(a => {
-    const prog = computeDurationProgress(a.startDate, a.endDate, a.duration);
-    const wishedTotal = myWishes.filter(w => w.assocId === a.id).reduce((s, w) => s + Number(w.sharesCount), 0);
-    const wishedPercent = a.sub.sharesCount > 0 ? Math.min(100, Math.round((wishedTotal / a.sub.sharesCount) * 100)) : 0;
-    const daysToStart = daysUntil(a.startDate);
-    const notStartedYet = daysToStart !== null && daysToStart > 0;
-
-    const el = document.createElement('div');
-    el.className = 'assoc-card status-' + a.status;
-    el.innerHTML =
-      '<div class="flex-between"><div class="assoc-name">🏠 ' + a.name + '</div>' +
-      '<span class="badge badge-' + (a.status === 'نشطة' ? 'success' : a.status === 'منتهية' ? 'gray' : 'gold') + '">' + STATUS_LABEL[a.status] + '</span></div>' +
-      '<div class="assoc-meta">' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">أسهمي في الجمعية</div><div class="assoc-meta-val">' + formatNumber(a.sub.sharesCount) + ' سهم</div></div>' +
-        '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
-      '</div>' +
-      '<div class="progress-wrap primary">' + renderProgressBarHtml(prog.percent) +
-        '<div class="progress-label">' + (notStartedYet
-          ? '<span>لم تبدأ بعد</span><span>تبدأ خلال ' + formatNumber(daysToStart) + ' يوم</span>'
-          : '<span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span>') + '</div></div>' +
-      '<div class="progress-wrap secondary">' + renderProgressBarHtml(wishedPercent, 'success') +
-        '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(wishedTotal) + ' / ' + formatNumber(a.sub.sharesCount) + ' سهم</span></div></div>';
-    el.addEventListener('click', withCardLoading(el, () => showAssociationDetail(content, session, a)));
-    list.appendChild(el);
-  });
+  mine.forEach(a => list.appendChild(buildMemberAssocCardEl(a, myWishes, content, session)));
 
   renderAvailableAssociations(content, session, available);
+}
+
+// بطاقة جمعية واحدة لقائمتي "جمعياتي" (الرئيسية) و"الفئات" معاً — نفس العنصر بالضبط، دالة واحدة
+// بدل تكراره في مكانين. تلوين شريط التقدّم الزمني ديناميكي حسب فئة النسبة (تحديد محمد الصريح).
+function buildMemberAssocCardEl(a, myWishes, content, session) {
+  const prog = computeDurationProgress(a.startDate, a.endDate, a.duration);
+  const wishedTotal = myWishes.filter(w => w.assocId === a.id).reduce((s, w) => s + Number(w.sharesCount), 0);
+  const wishedPercent = a.sub.sharesCount > 0 ? Math.min(100, Math.round((wishedTotal / a.sub.sharesCount) * 100)) : 0;
+  const daysToStart = daysUntil(a.startDate);
+  const notStartedYet = daysToStart !== null && daysToStart > 0;
+
+  const el = document.createElement('div');
+  el.className = 'assoc-card status-' + a.status;
+  el.innerHTML =
+    '<div class="flex-between"><div class="assoc-name">🏠 ' + a.name + '</div>' +
+    '<span class="badge badge-' + (a.status === 'نشطة' ? 'success' : a.status === 'منتهية' ? 'gray' : 'gold') + '">' + STATUS_LABEL[a.status] + '</span></div>' +
+    '<div class="assoc-meta">' +
+      '<div class="assoc-meta-item"><div class="assoc-meta-label">أسهمي في الجمعية</div><div class="assoc-meta-val">' + formatNumber(a.sub.sharesCount) + ' سهم</div></div>' +
+      '<div class="assoc-meta-item"><div class="assoc-meta-label">قيمة السهم</div><div class="assoc-meta-val">' + formatCurrency(a.shareValue) + '</div></div>' +
+    '</div>' +
+    '<div class="progress-wrap primary">' + renderProgressBarHtml(prog.percent, percentBarClass_(prog.percent)) +
+      '<div class="progress-label">' + (notStartedYet
+        ? '<span>لم تبدأ بعد</span><span>تبدأ خلال ' + formatNumber(daysToStart) + ' يوم</span>'
+        : '<span>تقدّم الجمعية الزمني — ' + prog.percent + '٪</span><span>' + formatNumber(prog.remainingDays) + ' يوم متبقٍ</span>') + '</div></div>' +
+    '<div class="progress-wrap secondary">' + renderProgressBarHtml(wishedPercent, percentBarClass_(wishedPercent)) +
+      '<div class="progress-label"><span>رغبات الاستلام المحدَّدة</span><span>' + formatNumber(wishedTotal) + ' / ' + formatNumber(a.sub.sharesCount) + ' سهم</span></div></div>';
+  el.addEventListener('click', withCardLoading(el, () => showAssociationDetail(content, session, a)));
+  return el;
+}
+
+function renderMemberTransactionsListHtml(txs) {
+  if (!txs || txs.length === 0) return '<p class="table-empty">لا توجد عمليات مؤكَّدة بعد</p>';
+  return txs.map(t => {
+    const isIn = t.type === 'استلام';
+    return (
+      '<div class="tx-row">' +
+        '<div class="tx-row-icon ' + (isIn ? 'in' : 'out') + '">' + (isIn ? ICONS.handoff : ICONS.wallet) + '</div>' +
+        '<div class="tx-row-body">' +
+          '<div class="tx-row-title">' + t.type + ' — ' + escapeHtml(t.assocName) + '</div>' +
+          '<div class="tx-row-meta">شهر ' + formatNumber(t.monthNum) + ' — ' + formatDualDateShort_(t.date) + '</div>' +
+        '</div>' +
+        '<div class="tx-row-amount ' + (isIn ? 'in' : 'out') + '">' + formatCurrency(t.amount) + '</div>' +
+      '</div>'
+    );
+  }).join('');
+}
+
+// تاريخ ميلادي مختصر (يوم/شهر/سنة) — بلا حاجة لاستيراد formatDualDate الكامل هنا لعرض بسيط بقائمة العمليات
+function formatDualDateShort_(dateInput) {
+  const d = new Date(dateInput);
+  return isNaN(d) ? '' : d.toLocaleDateString('en-GB');
+}
+
+// تبويب "الفئات" (شريط سفلي جديد بلوحة العضو) — نفس بيانات "جمعياتي" الحقيقية، لكن مع فلاتر حالة
+// (الكل/نشطة/جديدة/منتهية) بدل عرضها كلها دفعة واحدة — تحديد محمد الصريح
+async function renderMemberCategoriesView(content, session) {
+  content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
+  let subs, associations, myWishes;
+  try {
+    [subs, associations, myWishes] = await Promise.all([
+      callApi('getSubscriptions', { memberId: session.memberId }),
+      callApi('getAssociations'),
+      callApi('getWishes', { memberId: session.memberId }),
+    ]);
+  } catch (err) {
+    content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
+    return;
+  }
+  const mine = associations
+    .filter(a => subs.some(s => s.assocId === a.id))
+    .map(a => ({ ...a, sub: subs.find(s => s.assocId === a.id) }));
+
+  const FILTERS = [
+    { id: 'all', label: 'الكل' },
+    { id: 'نشطة', label: 'نشطة' },
+    { id: 'جديدة', label: 'جديدة' },
+    { id: 'منتهية', label: 'منتهية' },
+  ];
+  content.innerHTML =
+    '<div class="section-title mt-16">الفئات — جمعياتي حسب الحالة</div>' +
+    '<div class="tabs" id="cat-filter-tabs">' + FILTERS.map(f => '<button class="tab-btn" data-f="' + f.id + '">' + f.label + '</button>').join('') + '</div>' +
+    '<div class="grid grid-2 mt-16" id="cat-assoc-list"></div>';
+
+  const tabsEl = content.querySelector('#cat-filter-tabs');
+  const listEl = content.querySelector('#cat-assoc-list');
+  function renderFiltered(filterId) {
+    tabsEl.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.f === filterId));
+    const filtered = filterId === 'all' ? mine : mine.filter(a => a.status === filterId);
+    listEl.innerHTML = '';
+    if (filtered.length === 0) { listEl.innerHTML = '<p class="table-empty">لا توجد جمعيات في هذه الفئة</p>'; return; }
+    filtered.forEach(a => listEl.appendChild(buildMemberAssocCardEl(a, myWishes, content, session)));
+  }
+  tabsEl.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => renderFiltered(b.dataset.f)));
+  renderFiltered('all');
+}
+
+// تبويب "الملف الشخصي" (شريط سفلي جديد بلوحة العضو) — يجمع بيانات الملف + إدارة الأجهزة + تسجيل
+// الخروج في مكان واحد، بدل تفرّقها بالصفحة الرئيسية — بلا أي بيانات جديدة، إعادة تنظيم بصري فقط
+async function renderMemberProfileView(content, session, onLogout) {
+  content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
+  let members;
+  try { members = await callApi('getMembers'); } catch (err) {
+    content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
+    return;
+  }
+  const me = members.find(m => m.id === session.memberId);
+
+  content.innerHTML =
+    '<div class="mpc-block mt-16">' +
+      '<div class="mpc-header">' +
+        '<div class="mpc-avatar">' + (session.memberName ? session.memberName.trim().charAt(0) : '؟') + '</div>' +
+        '<div class="mpc-name">' + session.memberName + '</div>' +
+        (me ? '<div class="mpc-phone">📱 ' + formatPhoneDisplay(me.phone) + '</div>' : '') +
+      '</div>' +
+      (me && me.notes ? '<div class="mpc-body"><div class="member-note-banner">ملاحظة من المدير: ' + escapeHtml(me.notes) + '</div></div>' : '') +
+    '</div>' +
+    navCardHtml('nav-devices', '📱', 'أجهزتي',
+      '<p class="form-hint" style="margin:0">ربط بصمة جهاز جديد، وإدارة الأجهزة المرتبطة بحسابك</p>', 'accent-indigo') +
+    '<button class="btn btn-outline btn-block mt-16" id="profile-logout-btn">تسجيل الخروج</button>';
+
+  wireDevicesCard(content, session, me, null);
+  content.querySelector('#profile-logout-btn').addEventListener('click', onLogout);
 }
 
 // يربط ضغطة بطاقة "أجهزتي" — يجلب أجهزة العضو الحالي (محمي بتذكرة الهوية على الخادم، انظر

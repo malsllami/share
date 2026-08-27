@@ -9,7 +9,7 @@
 //
 // ⚠️ يجب رفع رقم CACHE_NAME (v2, v3...) مع أي تعديل على أي ملف مذكور في SHELL_FILES، وإلا فقد لا
 // تُحدَّث نسخة الكاش الاحتياطية القديمة أبداً حتى لو تغيّر محتوى الملفات على الخادم.
-const CACHE_NAME = 'sahm-shell-v18';
+const CACHE_NAME = 'sahm-shell-v19';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -32,12 +32,14 @@ const SHELL_FILES = [
   './utils/dates.js',
   './utils/icons.js',
   './utils/sanitize.js',
+  './utils/deviceBiometric.js',
   './components/Toast.js',
   './components/Modal.js',
   './components/Header.js',
   './components/WishMonthPicker.js',
   './components/Button.js',
   './components/BottomNav.js',
+  './components/Charts.js',
   './pages/Login.js',
   './pages/MemberDashboard.js',
   './pages/AdminDashboard.js',

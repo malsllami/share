@@ -16,6 +16,43 @@ function fairPercents_(values) {
   return result;
 }
 
+// لون النسبة المئوية — ديناميكي حسب فئتها بدل لون ثابت واحد لكل حلقة/شريط (قرار محمد الصريح):
+// 90-100٪ ممتاز (أخضر) | 60-89٪ جيد (نيلي) | 35-59٪ متوسط (كهرماني) | 0-34٪ ضعيف (أحمر) —
+// يُستخدَم في كل حلقة/دونات/شريط تقدّم بالموقع بدل لون موحَّد أو ثابت حسب نوع البطاقة فقط
+export function percentColor_(percent) {
+  const p = Number(percent) || 0;
+  if (p >= 90) return 'var(--success)';
+  if (p >= 60) return 'var(--indigo)';
+  if (p >= 35) return 'var(--warning)';
+  return 'var(--danger)';
+}
+
+// نفس تدرّج percentColor_ لكن كاسم فئة CSS جاهز لاستخدامه مع renderProgressBarHtml (شرائط التقدّم
+// تدعم فقط success/warning/danger أو التدرّج الافتراضي نيلي→ذهبي — الفئة الافتراضية '' تُستخدَم
+// لفئة 60-89٪ لأنها أقرب بصرياً لدرجة "نيلي" من ألوان الهوية الحالية بلا حاجة لفئة CSS جديدة)
+export function percentBarClass_(percent) {
+  const p = Number(percent) || 0;
+  if (p >= 90) return 'success';
+  if (p >= 60) return '';
+  if (p >= 35) return 'warning';
+  return 'danger';
+}
+
+// حلقة نسبة صغيرة قائمة بذاتها (بلا Legend) — لبطاقات المؤشرات الفردية (KPI) حيث كل بطاقة تحتاج
+// حلقة واحدة مصغَّرة + رقم مركزي + تسمية أسفلها، بدل حلقة توزيع كاملة بعدة قطاعات كـrenderDonutHtml
+export function renderStatRingHtml(percent, centerText, label) {
+  const p = Math.min(100, Math.max(0, Number(percent) || 0));
+  const color = percentColor_(p);
+  return (
+    '<div class="stat-ring-wrap">' +
+      '<div class="stat-ring" style="background:conic-gradient(' + color + ' 0% ' + p + '%, var(--border) ' + p + '% 100%)">' +
+        '<div class="stat-ring-hole"><b>' + centerText + '</b></div>' +
+      '</div>' +
+      '<div class="stat-ring-label">' + label + '</div>' +
+    '</div>'
+  );
+}
+
 // segments: [{ label, value, color }] — color أي قيمة CSS صالحة (var(--x) أو hex). يُفترض أن الطالب
 // رتَّب segments بالترتيب المطلوب عرضه به مسبقاً (مثلاً حسب رقم الشهر) — هذه الدالة لا تُعيد الترتيب.
 // القيم الفارغة/صفرية تُعرض كحلقة رمادية محايدة بدل الانهيار على قسمة صفر.
