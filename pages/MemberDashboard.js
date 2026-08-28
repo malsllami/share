@@ -88,6 +88,39 @@ function buildMyEntitlementCardHtml(activeAssoc, deliveryRows, monthDateByNum) {
   );
 }
 
+// بانر إشعارات حقيقي (Additive only — جدول "اشعارات الاعضاء" الجديد، انظر gas/Notifications.gs):
+// يظهر فقط عند وجود إشعار غير مقروء فعلياً — لا بيانات وهمية أو تجريبية بأي حال. كل بانر بزر
+// "فهمت" مستقل يستدعي markNotificationRead ويُخفي بطاقته فوراً دون إعادة تحميل الصفحة بالكامل.
+function buildNotificationsBannerHtml_(notifications) {
+  if (!notifications || notifications.length === 0) return '';
+  return '<div class="notif-banner-list">' + notifications.map(n =>
+    '<div class="notif-banner-card" data-notif-id="' + n.id + '">' +
+      '<div class="notif-banner-icon">' + ICONS.bell + '</div>' +
+      '<div class="notif-banner-body">' +
+        '<div class="notif-banner-title">' + escapeHtml(n.assocName) + ' — الشهر ' + formatNumber(n.monthNum) + '</div>' +
+        '<div class="notif-banner-text">' + escapeHtml(n.text) + '</div>' +
+      '</div>' +
+      '<button class="btn btn-sm btn-outline notif-banner-dismiss" data-notif-id="' + n.id + '">فهمت</button>' +
+    '</div>'
+  ).join('') + '</div>';
+}
+
+// يربط زر "فهمت" بكل بطاقة إشعار — يُستدعى بعد كل إعادة رسم لمحتوى الرئيسية (كلا فرعي mine.length)
+function wireNotificationsBanner(content, session) {
+  content.querySelectorAll('.notif-banner-dismiss').forEach(btn => {
+    btn.addEventListener('click', withButtonLoading(btn, async () => {
+      const id = btn.dataset.notifId;
+      try {
+        await callApi('markNotificationRead', { id });
+        const card = content.querySelector('.notif-banner-card[data-notif-id="' + id + '"]');
+        if (card) card.remove();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }));
+  });
+}
+
 // بطاقة تنقّل قابلة للنقر (Hub → Detail) — عنوان + محتوى مختصر اختياري + سهم يشير لوجود المزيد
 // accentClass: شريط لوني جانبي مميِّز (accent-gold/accent-success/accent-indigo) حتى لا تتشابه
 // البطاقات الثلاث بصرياً رغم اختلاف وظيفتها
@@ -125,6 +158,13 @@ export async function renderMemberAssociationsView(content, session, isStale) {
     return;
   }
   if (isStale && isStale()) return;
+
+  // ── إشعارات حقيقية (تصفير شهر تجاوز سعته بعد تعديل/انسحاب اشتراك عضو آخر) — انظر
+  // gas/Notifications.gs. نداء مستقل خفيف؛ فشله لا يمنع عرض بقية اللوحة أبداً
+  let myNotifications = [];
+  try { myNotifications = await callApi('getMyNotifications'); } catch (err) { /* غير حرج */ }
+  if (isStale && isStale()) return;
+  const notificationsBannerHtml = buildNotificationsBannerHtml_(myNotifications);
 
   const me = members.find(m => m.id === session.memberId);
   const mine = associations
@@ -230,10 +270,11 @@ export async function renderMemberAssociationsView(content, session, isStale) {
     '<p class="form-hint" style="margin:0">ربط بصمة جهاز جديد، وإدارة الأجهزة المرتبطة بحسابك</p>', 'accent-indigo');
 
   if (mine.length === 0) {
-    content.innerHTML = profileHtml + devicesCardHtml +
+    content.innerHTML = notificationsBannerHtml + profileHtml + devicesCardHtml +
       '<div class="card text-center"><p style="color:var(--text-3)">لست مشتركاً في أي جمعية بعد.' +
       (available.length ? '' : ' تواصل مع المدير للاشتراك.') + '</p></div>' +
       availableSectionHtml;
+    wireNotificationsBanner(content, session);
     wireDevicesCard(content, session, me, isStale);
     renderAvailableAssociations(content, session, available);
     return;
@@ -249,10 +290,11 @@ export async function renderMemberAssociationsView(content, session, isStale) {
     '<div class="section-title">آخر العمليات</div>' +
     '<div class="card" style="margin-bottom:18px"><div class="tx-list">' + renderMemberTransactionsListHtml(myTransactions) + '</div></div>';
 
-  content.innerHTML = profileHtml + kpiSectionHtml + donutSectionHtml + entitlementCardHtml + devicesCardHtml +
+  content.innerHTML = notificationsBannerHtml + profileHtml + kpiSectionHtml + donutSectionHtml + entitlementCardHtml + devicesCardHtml +
     '<div class="section-title">جمعياتي</div>' +
     '<div class="grid grid-2" id="assoc-list"></div>' +
     availableSectionHtml + transactionsSectionHtml;
+  wireNotificationsBanner(content, session);
   wireDevicesCard(content, session, me, isStale);
 
   const list = content.querySelector('#assoc-list');

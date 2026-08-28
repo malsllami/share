@@ -774,7 +774,10 @@ async function showAssociationAdminDetail(content, session, assoc) {
   const completionPercent = combinedExpected > 0 ? Math.round((combinedDone / combinedExpected) * 100) : 0;
 
   content.innerHTML =
-    '<button class="btn btn-outline btn-sm" id="back-btn">→ رجوع للجمعيات</button>' +
+    '<div class="flex-between">' +
+      '<button class="btn btn-outline btn-sm" id="back-btn">→ رجوع للجمعيات</button>' +
+      (assoc.status !== 'منتهية' ? '<button class="btn btn-outline btn-sm" id="fix-dates-btn">تصحيح تواريخ الجمعية</button>' : '') +
+    '</div>' +
     '<div class="card mt-16">' +
       '<div class="flex-between"><div class="assoc-name">' + assoc.name + '</div>' +
       '<span class="badge badge-' + (assoc.status === 'نشطة' ? 'success' : assoc.status === 'منتهية' ? 'gray' : 'gold') + '">' + assoc.status + '</span></div>' +
@@ -812,6 +815,17 @@ async function showAssociationAdminDetail(content, session, assoc) {
     '<div id="assoc-sub-content"></div>';
 
   content.querySelector('#back-btn').addEventListener('click', () => showAssociationsTab(content, session));
+  const fixDatesBtn = content.querySelector('#fix-dates-btn');
+  if (fixDatesBtn) fixDatesBtn.addEventListener('click', withButtonLoading(fixDatesBtn, async () => {
+    if (!confirm('سيُعاد ضبط تاريخ بداية/نهاية الجمعية على حدود الشهر التقويمي (أول/آخر يوم)، وتاريخ كل شهر مفتوح تبعًا لذلك — لن يُلمَس أي شهر مغلق فعليًا. متابعة؟')) return;
+    try {
+      const r = await callApi('fixAssociationDates', { assocId: assoc.id });
+      showToast('تم التصحيح: ' + r.monthsFixed + ' شهر مفتوح صُحِّح، ' + r.monthsSkippedClosed + ' شهر مغلق لم يُلمَس', 'success');
+      showAssociationAdminDetail(content, session, { ...assoc, startDate: r.startDate, endDate: r.endDate });
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }));
   const subContent = content.querySelector('#assoc-sub-content');
   const subTabs = content.querySelector('#assoc-sub-tabs');
 
@@ -1021,13 +1035,17 @@ async function showMonthDetailModal(subContent, assoc, month) {
         const checkbox = tr.querySelector('input');
         const waBtn = tr.querySelector('.wa-btn');
 
+        // تاريخ الرسالة = لحظة التأكيد الفعلية (وقت الضغط على تشيك بوكس)، وليس تاريخ استحقاق الشهر
+        // المحسوب — تحديد محمد الصريح. تُهيَّأ مبدئياً بتاريخ التأكيد الحقيقي إن كان الصف مؤكَّداً
+        // أصلاً عند فتح النافذة، وتُحدَّث للحظة الحالية فور نجاح تأكيد جديد.
+        let confirmedAt = c.confirmDate || null;
         function updateWaLink() {
           const message = fillTemplate(settings.collectionMessage, {
             الاسم: c.memberName,
             عدد_الاسهم: formatNumber(c.sharesCount),
             قيمة_التحصيل: formatCurrency(c.sharesValue),
             رقم_الشهر: formatNumber(month.monthNum),
-            التاريخ: formatDualDate(computeMonthDueDate(month.date)).combined,
+            التاريخ: confirmedAt ? formatDualDate(confirmedAt).combined : '',
           });
           waBtn.href = buildWhatsAppLink(c.memberPhone, message);
         }
@@ -1039,6 +1057,7 @@ async function showMonthDetailModal(subContent, assoc, month) {
           checkbox.disabled = true;
           try {
             await callApi('confirmCollection', { id: c.id, collected: e.target.checked });
+            if (e.target.checked) { confirmedAt = new Date(); updateWaLink(); }
             waBtn.style.display = e.target.checked ? '' : 'none';
             showToast('تم التحديث', 'success');
             // تحديث بطاقات "الأشهر" خلف النافذة المنبثقة بلا انتظار — وإلا تبقى القيم (المتبقي،
@@ -1076,11 +1095,15 @@ async function showMonthDetailModal(subContent, assoc, month) {
           const deliveredSoFar = deliveryRows.filter(r => r.delivered).reduce((s, r) => s + Number(r.deliveryValue), 0);
           const remaining = Math.max(0, totalEntitlement - deliveredSoFar);
           const now = new Date();
+          // تاريخ الرسالة = لحظة التأكيد الفعلية: التاريخ الحقيقي المخزَّن إن كان مؤكَّداً أصلاً عند
+          // فتح النافذة، وإلا اللحظة الحالية (نُحدِّثها فعلياً فور نجاح التأكيد — انظر أسفل) — وليس
+          // تاريخ استحقاق الشهر المحسوب — تحديد محمد الصريح
+          const confirmMoment = d.confirmDate ? new Date(d.confirmDate) : now;
           const message = fillTemplate(settings.deliveryMessage, {
             الاسم: d.memberName,
             عدد_الاسهم: formatNumber(totalShares),
             رقم_الشهر: formatNumber(d.monthNum),
-            التاريخ: formatDualDate(computeMonthDueDate(month.date)).combined,
+            التاريخ: formatDualDate(confirmMoment).combined,
             اسهم_التسليم: formatNumber(d.sharesCount),
             المتبقي: formatCurrency(remaining),
             تاريخ_الوقت: now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('ar-SA'),

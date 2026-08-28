@@ -386,6 +386,16 @@
 }
 .member-note-banner .icon-svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 1px; }
 
+/* ═══════════════════ بانر إشعارات حقيقي (لوحة العضو) — تصفير شهر تجاوز سعته بعد تغيّر اشتراك عضو آخر ═══════════════════ */
+.notif-banner-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.notif-banner-card { display: flex; align-items: flex-start; gap: 10px; background: var(--warning-soft); border: 1px solid var(--warning); border-radius: var(--radius-sm); padding: 12px 14px; }
+.notif-banner-icon { flex-shrink: 0; margin-top: 1px; }
+.notif-banner-icon .icon-svg { width: 18px; height: 18px; color: var(--warning); }
+.notif-banner-body { flex: 1; min-width: 0; }
+.notif-banner-title { font-size: 12.5px; font-weight: 800; color: var(--text); }
+.notif-banner-text { font-size: 11.5px; color: var(--text-2); margin-top: 2px; }
+.notif-banner-dismiss { flex-shrink: 0; align-self: center; }
+
 /* ═══════════════════ زر أيقونة صغير داخل بطاقة (فوق سطح فاتح) — بديل .icon-btn المخصَّص للرأس الغامق ═══════════════════ */
 .mini-icon-btn { width: 34px; height: 34px; border-radius: var(--radius-sm); border: none; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--indigo-soft); color: var(--indigo-text); transition: all .2s var(--ease); }
 .mini-icon-btn:hover { background: var(--indigo); color: #fff; }
