@@ -776,7 +776,12 @@ async function showAssociationAdminDetail(content, session, assoc) {
   content.innerHTML =
     '<div class="flex-between">' +
       '<button class="btn btn-outline btn-sm" id="back-btn">→ رجوع للجمعيات</button>' +
-      (assoc.status !== 'منتهية' ? '<button class="btn btn-outline btn-sm" id="fix-dates-btn">تصحيح تواريخ الجمعية</button>' : '') +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        (assoc.status !== 'منتهية' ? '<button class="btn btn-outline btn-sm" id="fix-dates-btn">تصحيح تواريخ الجمعية</button>' : '') +
+        // حذف نهائي متاح فقط لجمعية "جديدة" (لم تبدأ بعد، لا تحصيل/تسليم حقيقي مؤكَّد فيها) — محظور
+        // تمامًا على أي جمعية نشطة أو منتهية، فحصاً مزدوجاً هنا وفي الخادم معاً (gas/Associations.gs)
+        (assoc.status === 'جديدة' ? '<button class="btn btn-danger btn-sm" id="delete-assoc-btn">حذف الجمعية نهائيًا</button>' : '') +
+      '</div>' +
     '</div>' +
     '<div class="card mt-16">' +
       '<div class="flex-between"><div class="assoc-name">' + assoc.name + '</div>' +
@@ -822,6 +827,21 @@ async function showAssociationAdminDetail(content, session, assoc) {
       const r = await callApi('fixAssociationDates', { assocId: assoc.id });
       showToast('تم التصحيح: ' + r.monthsFixed + ' شهر مفتوح صُحِّح، ' + r.monthsSkippedClosed + ' شهر مغلق لم يُلمَس', 'success');
       showAssociationAdminDetail(content, session, { ...assoc, startDate: r.startDate, endDate: r.endDate });
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }));
+  const deleteAssocBtn = content.querySelector('#delete-assoc-btn');
+  if (deleteAssocBtn) deleteAssocBtn.addEventListener('click', withButtonLoading(deleteAssocBtn, async () => {
+    // تأكيد مزدوج نظراً لخطورة الحذف النهائي — يطلب من المدير كتابة اسم الجمعية حرفياً لتفادي أي
+    // نقرة عرضية على إجراء لا يمكن التراجع عنه
+    if (!confirm('سيُحذف نهائياً كل ما يخص جمعية "' + assoc.name + '" (اشتراكات + رغبات + تحصيل + تسليم + أشهر) بلا رجعة. متابعة؟')) return;
+    const typed = prompt('للتأكيد، اكتب اسم الجمعية بالضبط: ' + assoc.name);
+    if (typed !== assoc.name) { showToast('الاسم غير مطابق — أُلغي الحذف', 'error'); return; }
+    try {
+      await callApi('deleteAssociation', { assocId: assoc.id });
+      showToast('تم حذف الجمعية نهائياً', 'success');
+      showAssociationsTab(content, session);
     } catch (err) {
       showToast(err.message, 'error');
     }
