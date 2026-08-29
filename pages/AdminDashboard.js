@@ -578,7 +578,12 @@ async function showMembersTab(content, isStale) {
   content.innerHTML =
     '<div class="flex-between mt-16" style="margin-bottom:16px">' +
       '<div class="section-title" style="margin:0">الأعضاء</div>' +
-      '<button class="btn btn-gold btn-sm" id="add-member-btn">+ إضافة عضو</button>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        // إصلاح رجعي لمرة واحدة (آمن للتكرار): بعض الأعضاء الأقدم قد يكون جوالهم مخزَّناً كرقم لا
+        // نص، ما يكسر رابط واتساب ويمنع تسجيل الدخول بالجوال — انظر fixMemberPhoneFormats بالخادم
+        '<button class="btn btn-outline btn-sm" id="fix-phones-btn">إصلاح صيغة أرقام الجوال</button>' +
+        '<button class="btn btn-gold btn-sm" id="add-member-btn">+ إضافة عضو</button>' +
+      '</div>' +
     '</div>' +
     '<div class="table-wrap"><table><thead><tr><th>الاسم</th><th>الجوال</th><th>الحالة</th><th>ملاحظات</th><th></th></tr></thead><tbody id="members-body"></tbody></table></div>';
 
@@ -604,6 +609,17 @@ async function showMembersTab(content, isStale) {
   });
 
   content.querySelector('#add-member-btn').addEventListener('click', () => openAddMemberModal(() => showMembersTab(content)));
+
+  const fixPhonesBtn = content.querySelector('#fix-phones-btn');
+  fixPhonesBtn.addEventListener('click', withButtonLoading(fixPhonesBtn, async () => {
+    try {
+      const r = await callApi('fixMemberPhoneFormats');
+      showToast(r.fixedCount > 0 ? 'تم إصلاح ' + r.fixedCount + ' رقم جوال' : 'كل أرقام الجوال بصيغة صحيحة أصلاً', 'success');
+      if (r.fixedCount > 0) showMembersTab(content);
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  }));
 }
 
 // نافذة "إضافة عضو" مستقلة — تُستدعى من تبويب "الأعضاء" نفسه ومن "إجراءات سريعة" بنظرة عامة معاً
@@ -763,6 +779,44 @@ async function openAddAssociationModal(onDone) {
   });
 }
 
+// نافذة "تصحيح تواريخ الجمعية" — تطبيع تلقائي للتاريخ المخزَّن حالياً (بلا تعديل الحقل)، أو تصحيح
+// كامل لشهر خاطئ بالكامل عبر إدخال تاريخ بداية جديد صراحةً (مُعبَّأ افتراضياً بالقيمة الحالية حتى
+// لا يُغيَّر شيء ما لم يلمسه المدير فعلياً) — انظر p.newStartDate الاختياري في fixAssociationDates
+function openFixAssociationDatesModal(content, session, assoc) {
+  const currentStart = assoc.startDate ? String(assoc.startDate).slice(0, 10) : '';
+  openModal({
+    title: 'تصحيح تواريخ الجمعية',
+    bodyHtml:
+      '<p class="form-hint" style="margin-bottom:14px">سيُعاد ضبط تاريخ بداية/نهاية الجمعية على حدود الشهر التقويمي (أول/آخر يوم)، وتاريخ كل شهر مفتوح تبعًا لذلك — لن يُلمَس أي شهر مغلق فعليًا.</p>' +
+      '<div class="form-group"><label class="form-label">تاريخ البداية الحالي المخزَّن: ' + (currentStart || '—') + '</label></div>' +
+      '<div class="form-group"><label class="form-label">تاريخ بداية صحيح (اتركه كما هو إن كان اليوم/الشهر المخزَّن صحيحاً بالفعل)</label>' +
+        '<input id="fd-start" type="date" class="form-control" value="' + currentStart + '" /></div>' +
+      '<div class="form-error hidden" id="fd-error"></div>' +
+      '<button class="btn btn-gold btn-block" id="fd-save">تصحيح</button>',
+    onMount: (modal) => {
+      const saveBtn = modal.querySelector('#fd-save');
+      saveBtn.addEventListener('click', withButtonLoading(saveBtn, async () => {
+        const errEl = modal.querySelector('#fd-error');
+        errEl.classList.add('hidden');
+        const typedStart = modal.querySelector('#fd-start').value;
+        // لا يُرسَل newStartDate إطلاقاً إن لم يُغيِّره المدير عن القيمة المعبَّأة أصلاً — يبقي
+        // السلوك مطابقاً تماماً للتصحيح التلقائي المعتاد (تطبيع التاريخ الحالي بلا تغيير قيمته)
+        const params = { assocId: assoc.id };
+        if (typedStart && typedStart !== currentStart) params.newStartDate = typedStart;
+        try {
+          const r = await callApi('fixAssociationDates', params);
+          closeModal();
+          showToast('تم التصحيح: ' + r.monthsFixed + ' شهر مفتوح صُحِّح، ' + r.monthsSkippedClosed + ' شهر مغلق لم يُلمَس', 'success');
+          showAssociationAdminDetail(content, session, { ...assoc, startDate: r.startDate, endDate: r.endDate });
+        } catch (err) {
+          errEl.textContent = err.message;
+          errEl.classList.remove('hidden');
+        }
+      }));
+    },
+  });
+}
+
 async function showAssociationAdminDetail(content, session, assoc) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   const summary = await callApi('getAssociationFinancialSummary', { assocId: assoc.id });
@@ -821,16 +875,7 @@ async function showAssociationAdminDetail(content, session, assoc) {
 
   content.querySelector('#back-btn').addEventListener('click', () => showAssociationsTab(content, session));
   const fixDatesBtn = content.querySelector('#fix-dates-btn');
-  if (fixDatesBtn) fixDatesBtn.addEventListener('click', withButtonLoading(fixDatesBtn, async () => {
-    if (!confirm('سيُعاد ضبط تاريخ بداية/نهاية الجمعية على حدود الشهر التقويمي (أول/آخر يوم)، وتاريخ كل شهر مفتوح تبعًا لذلك — لن يُلمَس أي شهر مغلق فعليًا. متابعة؟')) return;
-    try {
-      const r = await callApi('fixAssociationDates', { assocId: assoc.id });
-      showToast('تم التصحيح: ' + r.monthsFixed + ' شهر مفتوح صُحِّح، ' + r.monthsSkippedClosed + ' شهر مغلق لم يُلمَس', 'success');
-      showAssociationAdminDetail(content, session, { ...assoc, startDate: r.startDate, endDate: r.endDate });
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  }));
+  if (fixDatesBtn) fixDatesBtn.addEventListener('click', () => openFixAssociationDatesModal(content, session, assoc));
   const deleteAssocBtn = content.querySelector('#delete-assoc-btn');
   if (deleteAssocBtn) deleteAssocBtn.addEventListener('click', withButtonLoading(deleteAssocBtn, async () => {
     // تأكيد مزدوج نظراً لخطورة الحذف النهائي — يطلب من المدير كتابة اسم الجمعية حرفياً لتفادي أي

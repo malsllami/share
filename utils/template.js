@@ -16,7 +16,9 @@ export function fillTemplate(template, data) {
 }
 
 // يبني رابط واتساب مباشر (wa.me) برسالة جاهزة — يقبل الجوال بصيغة +966XXXXXXXXX
+// String(...) دفاعي هنا: بعض بيانات الأعضاء القديمة قد تصل كرقم (Number) لا نص من الخادم رغم الإصلاح
+// الرجعي (fixMemberPhoneFormats) — بدونه ينكسر .replace فوراً على أي قيمة غير نصية
 export function buildWhatsAppLink(phone, message) {
-  const digits = (phone || '').replace(/[^\d]/g, '');
+  const digits = String(phone || '').replace(/[^\d]/g, '');
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(message);
 }

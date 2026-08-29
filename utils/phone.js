@@ -15,9 +15,12 @@ export function extractLocalPart(fullPhone) {
   return fullPhone.slice(4);
 }
 
+// String(...) دفاعي: بعض بيانات الأعضاء القديمة قد تصل كرقم (Number) لا نص رغم الإصلاح الرجعي
+// (fixMemberPhoneFormats) — بدونه ينكسر .startsWith فوراً على أي قيمة غير نصية
 export function formatPhoneDisplay(e164) {
-  if (!e164 || !e164.startsWith('+966')) return e164 || '';
-  const d = e164.slice(4);
+  const s = String(e164 || '');
+  if (!s.startsWith('+966')) return s;
+  const d = s.slice(4);
   return '+966 ' + d.slice(0, 2) + ' ' + d.slice(2, 5) + ' ' + d.slice(5);
 }
 
