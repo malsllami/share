@@ -905,6 +905,55 @@ async function showAssociationAdminDetail(content, session, assoc) {
   activate('months');
 }
 
+// نافذة تحذير قبل تنفيذ انسحاب/تعديل اشتراك يُصفِّر رغبات أعضاء آخرين فعليًا (بعد تجاوز السعة
+// الجديدة) — تعرض بالضبط أي الأشهر وأي الأعضاء سيتأثرون، وتنتظر تأكيدًا صريحًا "متابعة رغم ذلك"
+// قبل أي تنفيذ فعلي. لا تُغيّر منطق التصفير نفسه (revalidateAssociationMonths_) إطلاقًا — تحذير
+// مسبق فقط بدل تنفيذه بصمت (تحديد محمد الصريح بعد أن فاجأه انسحاب عضوين بتصفير عدة أشهر دفعة واحدة).
+// @return {Promise<boolean>} true = المدير وافق على المتابعة (أو لا يوجد أي تأثير أصلًا)
+function confirmSubscriptionImpactModal_(impact) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (val) => { if (settled) return; settled = true; resolve(val); };
+
+    const rowsHtml = impact.affectedMonths.map((m) =>
+      '<div class="sub-member-row"><span class="name">الشهر ' + formatNumber(m.monthNum) + '</span>' +
+      '<span style="font-size:12px;color:var(--text-2)">' + m.affectedMembers.map(escapeHtml).join('، ') + '</span></div>'
+    ).join('');
+
+    const modal = openModal({
+      title: 'تحذير — سيتأثر أعضاء آخرون',
+      bodyHtml:
+        '<p class="form-hint" style="margin-bottom:14px">سيتجاوز الاستخدام الفعلي سعة الأشهر التالية بعد هذا التغيير، فتُصفَّر رغبات كل الأعضاء المذكورين فيها تلقائيًا (سيحتاجون إعادة اختيار شهر استلامهم):</p>' +
+        '<div class="sub-member-list" style="margin-bottom:16px">' + rowsHtml + '</div>' +
+        '<button class="btn btn-danger btn-block" id="impact-proceed" style="margin-bottom:8px">متابعة رغم ذلك</button>' +
+        '<button class="btn btn-outline btn-block" id="impact-cancel">إلغاء</button>',
+      onMount: (m) => {
+        m.querySelector('#impact-proceed').addEventListener('click', () => { closeModal(); settle(true); });
+        m.querySelector('#impact-cancel').addEventListener('click', () => { closeModal(); settle(false); });
+      },
+    });
+    modal.querySelector('[data-close-modal]').addEventListener('click', () => settle(false));
+    const overlay = document.getElementById('app-modal-overlay');
+    if (overlay) overlay.addEventListener('click', function onOverlay(e) {
+      if (e.target === overlay) { settle(false); overlay.removeEventListener('click', onOverlay); }
+    });
+  });
+}
+
+// يفحص أثر تغيير اشتراك عضو قبل تنفيذه فعليًا — إن لم يوجد أي تأثير، يتصرف تمامًا كسابقًا
+// (confirm() بسيط إن مُرِّرت رسالة، أو موافقة فورية بلا أي نافذة لحالة التعديل التي لم تكن تطلب
+// تأكيدًا أصلًا)؛ فشل استدعاء المعاينة نفسها لا يمنع الإجراء الأساسي (تراجع آمن)
+async function confirmSubscriptionChange_(assocId, memberId, newShares, baseConfirmMessage) {
+  let impact = { affectedMonths: [] };
+  try {
+    impact = await callApi('previewSubscriptionImpact', { assocId, memberId, newShares });
+  } catch (err) { /* فشل المعاينة لا يجب أن يمنع تنفيذ إجراء أساسي مشروع */ }
+  if (impact && impact.affectedMonths && impact.affectedMonths.length > 0) {
+    return confirmSubscriptionImpactModal_(impact);
+  }
+  return baseConfirmMessage ? confirm(baseConfirmMessage) : true;
+}
+
 async function showSubscriptionsSubTab(subContent, assoc, content, session) {
   subContent.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let subs, members;
@@ -930,7 +979,8 @@ async function showSubscriptionsSubTab(subContent, assoc, content, session) {
     tr.querySelector('.edit-sub-btn').addEventListener('click', () => openSubModal(subContent, assoc, s.memberId, s.memberName, s.sharesCount));
     const withdrawBtn = tr.querySelector('.withdraw-btn');
     if (withdrawBtn) withdrawBtn.addEventListener('click', withButtonLoading(withdrawBtn, async () => {
-      if (!confirm('هل تريد سحب اشتراك ' + s.memberName + '؟')) return;
+      const proceed = await confirmSubscriptionChange_(assoc.id, s.memberId, 0, 'هل تريد سحب اشتراك ' + s.memberName + '؟');
+      if (!proceed) return;
       await callApi('withdrawSubscription', { assocId: assoc.id, memberId: s.memberId });
       showSubscriptionsSubTab(subContent, assoc, content, session);
     }));
@@ -987,6 +1037,8 @@ function openSubModal(subContent, assoc, memberId, memberName, currentShares) {
         errEl.classList.add('hidden');
         const shares = normalizeDigits(modal.querySelector('#edit-shares').value);
         if (!isValidSharesCount(shares)) { errEl.textContent = 'عدد الأسهم يجب أن يكون 0.5 على الأقل وبمضاعفات نصف سهم'; errEl.classList.remove('hidden'); return; }
+        const proceed = await confirmSubscriptionChange_(assoc.id, memberId, parseFloat(shares), null);
+        if (!proceed) return;
         try {
           await callApi('updateSubscription', { assocId: assoc.id, memberId, sharesCount: shares });
           closeModal();
