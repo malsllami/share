@@ -144,25 +144,18 @@ function navCardHtml(id, icon, title, bodyHtml, accentClass) {
 // العضو نفسها (بلا تبويبات متعددة تتنافس على نفس content) يبقى isStale بلا قيمة فلا يُفعَّل أي تجاهل
 export async function renderMemberAssociationsView(content, session, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  let subs, associations, myWishes, members;
+  // حزمة واحدة (getMemberHomeBundle، 24 أكتوبر 2026) بدل 3 موجات طلبات متتالية (4 متزامنة + إشعارات
+  // منفردة + 3 متزامنة أخرى عند وجود جمعية نشطة) — أول شاشة تُفتح فور تسجيل الدخول، فكانت أبطأ نقطة
+  // بالموقع بأكمله؛ انظر Bundles.gs
+  let subs, associations, myWishes, members, myNotifications, activeMonths, activeCollectionRows, activeDeliveryRows;
   try {
-    [subs, associations, myWishes, members] = await Promise.all([
-      callApi('getSubscriptions', { memberId: session.memberId }),
-      callApi('getAssociations'),
-      callApi('getWishes', { memberId: session.memberId }),
-      callApi('getMembers'),
-    ]);
+    ({ subs, associations, wishes: myWishes, members, notifications: myNotifications,
+       activeMonths, activeCollectionRows, activeDeliveryRows } = await callApi('getMemberHomeBundle', { memberId: session.memberId }));
   } catch (err) {
     if (isStale && isStale()) return;
     content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
     return;
   }
-  if (isStale && isStale()) return;
-
-  // ── إشعارات حقيقية (تصفير شهر تجاوز سعته بعد تعديل/انسحاب اشتراك عضو آخر) — انظر
-  // gas/Notifications.gs. نداء مستقل خفيف؛ فشله لا يمنع عرض بقية اللوحة أبداً
-  let myNotifications = [];
-  try { myNotifications = await callApi('getMyNotifications'); } catch (err) { /* غير حرج */ }
   if (isStale && isStale()) return;
   const notificationsBannerHtml = buildNotificationsBannerHtml_(myNotifications);
 
@@ -185,19 +178,11 @@ export async function renderMemberAssociationsView(content, session, isStale) {
   // جمعية نشطة واحدة كحد أقصى عملياً (نفس افتراض لوحة المدير — انظر تسلسل الحالات في gas/MonthClosing.gs)
   const activeAssoc = activeOnly[0] || null;
 
-  // بيانات إضافية خفيفة خاصة بجمعيتي النشطة فقط (إن وُجدت) — نفس نمط 4 نداءات متزامنة الناجح أصلاً
-  // في showAssociationDetail أدناه (وليس إضافة عشوائية فوق نداء ثقيل كما حدث سابقاً بلوحة المدير)
-  let activeMonths = [], activeCollectionRows = [], activeDeliveryRows = [];
-  if (activeAssoc) {
-    try {
-      [activeMonths, activeCollectionRows, activeDeliveryRows] = await Promise.all([
-        callApi('getMonths', { assocId: activeAssoc.id }),
-        callApi('getMemberCollectionRows', { assocId: activeAssoc.id, memberId: session.memberId }),
-        callApi('getMemberDeliveryRows', { assocId: activeAssoc.id, memberId: session.memberId }),
-      ]);
-    } catch (err) { /* بيانات تكميلية — فشلها لا يمنع عرض بقية اللوحة */ }
-    if (isStale && isStale()) return;
-  }
+  // بيانات إضافية خفيفة خاصة بجمعيتي النشطة فقط (إن وُجدت) — وصلت جاهزة ضمن getMemberHomeBundle
+  // نفسها أعلاه (24 أكتوبر 2026)، بلا أي طلب شبكة إضافي هنا
+  activeMonths = activeMonths || [];
+  activeCollectionRows = activeCollectionRows || [];
+  activeDeliveryRows = activeDeliveryRows || [];
   const activeMonthDateByNum = new Map(activeMonths.map(m => [Number(m.monthNum), m.date]));
   const activeProg = activeAssoc ? computeDurationProgress(activeAssoc.startDate, activeAssoc.endDate, activeAssoc.duration) : null;
   const activeEntitlement = activeAssoc ? Number(activeAssoc.sub.sharesCount) * activeAssoc.shareValue * activeAssoc.duration : 0;
@@ -358,13 +343,11 @@ function formatDualDateShort_(dateInput) {
 // (الكل/نشطة/جديدة/منتهية) بدل عرضها كلها دفعة واحدة — تحديد محمد الصريح
 async function renderMemberCategoriesView(content, session) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
+  // نفس حزمة الرئيسية (getMemberHomeBundle) — تغطي ما يحتاجه هذا التبويب أيضاً (subs/associations/
+  // wishes)، فلا داعٍ لحزمة مستقلة؛ الحقول الإضافية (أعضاء/إشعارات/جمعية نشطة) تُتجاهَل هنا بأمان
   let subs, associations, myWishes;
   try {
-    [subs, associations, myWishes] = await Promise.all([
-      callApi('getSubscriptions', { memberId: session.memberId }),
-      callApi('getAssociations'),
-      callApi('getWishes', { memberId: session.memberId }),
-    ]);
+    ({ subs, associations, wishes: myWishes } = await callApi('getMemberHomeBundle', { memberId: session.memberId }));
   } catch (err) {
     content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
     return;
@@ -652,12 +635,7 @@ async function showAssociationDetail(content, session, assoc) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let months, wishes, collectionRows, deliveryRows;
   try {
-    [months, wishes, collectionRows, deliveryRows] = await Promise.all([
-      callApi('getMonthsWithTotals', { assocId: assoc.id }),
-      callApi('getWishes', { assocId: assoc.id, memberId: session.memberId }),
-      callApi('getMemberCollectionRows', { assocId: assoc.id, memberId: session.memberId }),
-      callApi('getMemberDeliveryRows', { assocId: assoc.id, memberId: session.memberId }),
-    ]);
+    ({ months, wishes, collectionRows, deliveryRows } = await callApi('getMemberAssociationDetailBundle', { assocId: assoc.id, memberId: session.memberId }));
   } catch (err) {
     content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
     return;

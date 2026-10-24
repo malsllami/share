@@ -314,28 +314,17 @@ async function showOverviewTab(content, activate, session, isStale) {
 /* ══════════════════ التقارير (رسوم بيانية مستقلة — منقولة من نظرة عامة) ══════════════════ */
 async function showReportsTab(content, activate, isStale) {
   content.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
-  // استدعاءات مباشرة خفيفة (لا getOverviewBundle الثقيلة كاملة) — كل دالة هنا مخزَّنة مؤقتاً أصلاً
-  // (300 ثانية)، فتبويب التقارير لا يعيد حساب ملخصات كل الجمعيات النشطة والأنشطة والتنبيهات التي
-  // لا يحتاجها إطلاقاً؛ هذا كان السبب المباشر لبطء فتح هذا التبويب تحديداً حسب ملاحظة محمد
-  let associations;
+  // حزمة خفيفة واحدة (لا getOverviewBundle الثقيلة كاملة) — getReportsBundle (24 أكتوبر 2026، كانت
+  // قبلها طلبي شبكة منفصلين: getAssociations ثم Promise.all لملخص الجمعية النشطة وأشهرها معاً)
+  let associations, summary, monthTotals;
   try {
-    associations = await callApi('getAssociations');
+    ({ associations, summary, monthTotals } = await callApi('getReportsBundle'));
   } catch (err) {
     if (isStale && isStale()) return;
     content.innerHTML = '<p class="table-empty">' + err.message + '</p>';
     return;
   }
   const activeAssoc = associations.find(a => a.status === 'نشطة') || null;
-
-  let summary = null, monthTotals = [];
-  if (activeAssoc) {
-    try {
-      [summary, monthTotals] = await Promise.all([
-        callApi('getAssociationFinancialSummary', { assocId: activeAssoc.id }),
-        callApi('getMonthsWithTotals', { assocId: activeAssoc.id }),
-      ]);
-    } catch (err) { /* الملخص السريع/الرسوم تبقى فارغة إن فشلت — لا تمنع عرض شبكة التقارير نفسها */ }
-  }
   if (isStale && isStale()) return;
 
   // رسم دائري: كم شهراً من مدة الجمعية النشطة له رغبات موزَّعة فعلاً (usedRiyal > 0)
@@ -958,7 +947,7 @@ async function showSubscriptionsSubTab(subContent, assoc, content, session) {
   subContent.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let subs, members;
   try {
-    [subs, members] = await Promise.all([callApi('getSubscriptions', { assocId: assoc.id }), callApi('getMembers')]);
+    ({ subs, members } = await callApi('getSubscriptionsTabBundle', { assocId: assoc.id }));
   } catch (err) {
     subContent.innerHTML = '<p class="table-empty">' + err.message + '</p>';
     return;
@@ -1057,10 +1046,7 @@ async function showMonthsSubTab(subContent, assoc) {
   subContent.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   let months, confirmSummary;
   try {
-    [months, confirmSummary] = await Promise.all([
-      callApi('getMonthsWithTotals', { assocId: assoc.id }),
-      callApi('getMonthsConfirmationSummary', { assocId: assoc.id }),
-    ]);
+    ({ months, confirmSummary } = await callApi('getMonthsTabBundle', { assocId: assoc.id }));
   } catch (err) {
     subContent.innerHTML = '<p class="table-empty">' + err.message + '</p>';
     return;
@@ -1201,16 +1187,12 @@ async function showMonthDetailModal(subContent, assoc, month) {
         const checkbox = tr.querySelector('input');
         const waBtn = tr.querySelector('.wa-btn');
 
-        // "المتبقي" يحتاج بيانات إضافية (إجمالي أسهم العضو + كل تسليماته المؤكَّدة) — تُجلَب عند الحاجة فقط
-        async function updateWaLink() {
-          const [subs, deliveryRows] = await Promise.all([
-            callApi('getSubscriptions', { assocId: assoc.id, memberId: d.memberId }),
-            callApi('getMemberDeliveryRows', { assocId: assoc.id, memberId: d.memberId }),
-          ]);
-          const totalShares = subs[0] ? Number(subs[0].sharesCount) : 0;
-          const totalEntitlement = totalShares * assoc.shareValue * assoc.duration;
-          const deliveredSoFar = deliveryRows.filter(r => r.delivered).reduce((s, r) => s + Number(r.deliveryValue), 0);
-          const remaining = Math.max(0, totalEntitlement - deliveredSoFar);
+        // "المتبقي" (totalShares/remaining) يصل جاهزاً الآن ضمن getMonthDetailBundle نفسها (24 أكتوبر
+        // 2026) — لا حاجة لأي طلب شبكة إضافي هنا، ولا حتى async (أُبقيت الدالة بهذا الاسم تفادياً
+        // لتغيير بقية الاستدعاءات أدناه، لكنها الآن متزامنة بالكامل)
+        function updateWaLink() {
+          const totalShares = d.totalShares || 0;
+          const remaining = d.remaining || 0;
           const now = new Date();
           // تاريخ الرسالة = لحظة التأكيد الفعلية: التاريخ الحقيقي المخزَّن إن كان مؤكَّداً أصلاً عند
           // فتح النافذة، وإلا اللحظة الحالية (نُحدِّثها فعلياً فور نجاح التأكيد — انظر أسفل) — وليس
@@ -1235,8 +1217,13 @@ async function showMonthDetailModal(subContent, assoc, month) {
           checkbox.disabled = true;
           try {
             await callApi('confirmDelivery', { id: d.id, delivered: e.target.checked });
+            // تعديل "المتبقي" محلياً حسب اتجاه التبديل (بلا طلب شبكة جديد) — القيمة الجاهزة وصلت
+            // عند فتح النافذة ولا تعكس هذا التأكيد تلقائياً
+            if (e.target.checked && !d.delivered) d.remaining = Math.max(0, (d.remaining || 0) - Number(d.deliveryValue));
+            else if (!e.target.checked && d.delivered) d.remaining = (d.remaining || 0) + Number(d.deliveryValue);
+            d.delivered = e.target.checked;
             waBtn.style.display = e.target.checked ? '' : 'none';
-            if (e.target.checked) await updateWaLink();
+            if (e.target.checked) updateWaLink();
             showToast('تم التحديث', 'success');
             // نفس تحديث بطاقات "الأشهر" خلف النافذة المنبثقة بلا انتظار (انظر معالج التحصيل أعلاه)
             showMonthsSubTab(subContent, assoc);
@@ -1285,10 +1272,7 @@ async function showWishesSubTab(subContent, assoc) {
   // للمدير كامل الصلاحية لإضافة/تعديل رغبة أي عضو مشترك (saveWish يقبل isAdmin=true حتى في جمعية "نشطة")
   // نفس منتقي الأشهر المستخدَم بلوحة العضو (بطاقات ملوّنة + شريط ملخص)، يُعاد بناؤه عند تغيير العضو
   subContent.querySelector('#add-wish-btn').addEventListener('click', async () => {
-    const [subs, months] = await Promise.all([
-      callApi('getSubscriptions', { assocId: assoc.id }),
-      callApi('getMonthsWithTotals', { assocId: assoc.id }),
-    ]);
+    const { subs, months } = await callApi('getWishPickerBundle', { assocId: assoc.id });
     if (subs.length === 0) { showToast('لا يوجد أعضاء مشتركون في هذه الجمعية بعد', 'error'); return; }
 
     // عضو "مُجمَّد" = وزّع كامل أسهمه على أشهر الاستلام بالفعل — يبقى قابلاً للاختيار (لتعديل/تقليص
